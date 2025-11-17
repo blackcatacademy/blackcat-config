@@ -1,0 +1,206 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../src/autoload.php';
+
+use BlackCat\Config\Config\ProfileConfig;
+use BlackCat\Config\Env\EnvRenderer;
+use BlackCat\Config\Integration\IntegrationChecker;
+use BlackCat\Config\Profile\ConfigProfile;
+use BlackCat\Config\Security\SecurityChecklist;
+use BlackCat\Config\Telemetry\TelemetryEmitter;
+use Throwable;
+
+$args = $_SERVER['argv'] ?? [];
+array_shift($args);
+
+$configPath = __DIR__ . '/../config/profiles.php';
+if ($args !== [] && is_file($args[0])) {
+    $configPath = array_shift($args);
+}
+
+$command = $args[0] ?? 'profile:list';
+$commandArgs = array_slice($args, 1);
+
+try {
+    $profileConfig = ProfileConfig::fromFile($configPath);
+} catch (Throwable $exception) {
+    fwrite(STDERR, "Unable to load config: {$exception->getMessage()}" . PHP_EOL);
+    exit(1);
+}
+
+$defaultTelemetry = (string) ($profileConfig->defaults()['telemetry']['channel'] ?? 'stdout');
+$envRenderer = new EnvRenderer();
+$securityChecklist = new SecurityChecklist();
+$integrationChecker = new IntegrationChecker();
+
+$emit = static function (string $event, array $context = [], ?ConfigProfile $profile = null) use ($defaultTelemetry): void {
+    $channel = $profile?->telemetryChannel($defaultTelemetry) ?? $defaultTelemetry;
+    try {
+        TelemetryEmitter::forChannel($channel)->emit($event, $context);
+    } catch (Throwable $exception) {
+        fwrite(STDERR, "[telemetry] {$exception->getMessage()}" . PHP_EOL);
+    }
+};
+
+switch ($command) {
+    case 'profile:list':
+        foreach ($profileConfig->profiles() as $profile) {
+            printf(
+                "- %-12s %-12s modules:%d\n",
+                $profile->name(),
+                $profile->environment(),
+                count($profile->modules())
+            );
+        }
+        $emit('profile:list', ['profiles' => count($profileConfig->profiles()), 'source' => $profileConfig->sourcePath()]);
+        break;
+
+    case 'profile:env':
+        $profile = requireProfile($profileConfig, $commandArgs[0] ?? null);
+        foreach ($profile->env() as $key => $value) {
+            printf("%s=%s\n", $key, $value);
+        }
+        $emit('profile:env', ['profile' => $profile->name()], $profile);
+        break;
+
+    case 'profile:modules':
+        $profile = requireProfile($profileConfig, $commandArgs[0] ?? null);
+        foreach ($profile->modules() as $module) {
+            echo $module . PHP_EOL;
+        }
+        $emit('profile:modules', ['profile' => $profile->name(), 'count' => count($profile->modules())], $profile);
+        break;
+
+    case 'profile:info':
+        $profile = requireProfile($profileConfig, $commandArgs[0] ?? null);
+        echo json_encode($profile->toArray(), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;
+        $emit('profile:info', ['profile' => $profile->name()], $profile);
+        break;
+
+    case 'profile:render-env':
+        $profile = requireProfile($profileConfig, $commandArgs[0] ?? null);
+        $target = $commandArgs[1] ?? (__DIR__ . '/../var/env/' . $profile->name() . '.env');
+        $envRenderer->render($profile, $target);
+        printf("Env file generated: %s\n", $target);
+        $emit('profile:render-env', ['profile' => $profile->name(), 'target' => $target], $profile);
+        break;
+
+    case 'integration:list':
+        $profile = requireProfile($profileConfig, $commandArgs[0] ?? null);
+        foreach ($profile->integrations() as $name => $path) {
+            printf("%-16s %s\n", $name, $path);
+        }
+        $emit('integration:list', ['profile' => $profile->name(), 'count' => count($profile->integrations())], $profile);
+        break;
+
+    case 'integration:check':
+        $profile = requireProfile($profileConfig, $commandArgs[0] ?? null);
+        $issues = $integrationChecker->check($profile);
+        if ($issues !== []) {
+            foreach ($issues as $issue) {
+                fwrite(STDERR, "- {$issue}" . PHP_EOL);
+            }
+            $emit('integration:check', ['profile' => $profile->name(), 'status' => 'failed'], $profile);
+            exit(1);
+        }
+        echo "All integrations resolved for {$profile->name()}." . PHP_EOL;
+        $emit('integration:check', ['profile' => $profile->name(), 'status' => 'ok'], $profile);
+        break;
+
+    case 'telemetry:tail':
+        $profile = requireProfile($profileConfig, $commandArgs[0] ?? null);
+        $lines = isset($commandArgs[1]) ? max(1, (int) $commandArgs[1]) : 20;
+        $emitter = TelemetryEmitter::forChannel($profile->telemetryChannel($defaultTelemetry));
+        $records = $emitter->tail($lines);
+        foreach ($records as $record) {
+            echo $record . PHP_EOL;
+        }
+        $emit('telemetry:tail', ['profile' => $profile->name(), 'lines' => $lines], $profile);
+        break;
+
+    case 'security:check':
+        $profile = requireProfile($profileConfig, $commandArgs[0] ?? null);
+        $issues = $securityChecklist->validate($profile);
+        if ($issues !== []) {
+            foreach ($issues as $issue) {
+                fwrite(STDERR, "- {$issue}" . PHP_EOL);
+            }
+            $emit('security:check', ['profile' => $profile->name(), 'status' => 'failed'], $profile);
+            exit(1);
+        }
+        echo "Security checklist passed for {$profile->name()}." . PHP_EOL;
+        $emit('security:check', ['profile' => $profile->name(), 'status' => 'ok'], $profile);
+        break;
+
+    case 'check':
+        $failures = [];
+        foreach ($profileConfig->profiles() as $profile) {
+            $securityIssues = $securityChecklist->validate($profile);
+            $integrationIssues = $integrationChecker->check($profile);
+            if ($securityIssues !== [] || $integrationIssues !== []) {
+                $failures[$profile->name()] = array_merge($securityIssues, $integrationIssues);
+            }
+        }
+
+        if ($failures !== []) {
+            foreach ($failures as $profile => $issues) {
+                fwrite(STDERR, "[{$profile}]" . PHP_EOL);
+                foreach ($issues as $issue) {
+                    fwrite(STDERR, "  - {$issue}" . PHP_EOL);
+                }
+            }
+            $emit('check', ['status' => 'failed', 'profiles' => array_keys($failures)]);
+            exit(1);
+        }
+
+        echo "All profiles passed security + integration checks." . PHP_EOL;
+        $emit('check', ['status' => 'ok', 'profiles' => count($profileConfig->profiles())]);
+        break;
+
+    case 'help':
+    default:
+        printHelp();
+        if ($command !== 'help') {
+            fwrite(STDERR, "Unknown command {$command}\n");
+            exit(1);
+        }
+        break;
+}
+
+function requireProfile(ProfileConfig $config, ?string $name): ConfigProfile
+{
+    if ($name === null) {
+        fwrite(STDERR, "Command requires <profile> argument.\n");
+        exit(1);
+    }
+
+    try {
+        return $config->require($name);
+    } catch (Throwable $exception) {
+        fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+}
+
+function printHelp(): void
+{
+    echo <<<TXT
+BlackCat Config CLI
+
+Usage:
+  config [profiles.php] profile:list
+  config [profiles.php] profile:env <profile>
+  config [profiles.php] profile:modules <profile>
+  config [profiles.php] profile:info <profile>
+  config [profiles.php] profile:render-env <profile> [target]
+  config [profiles.php] integration:list <profile>
+  config [profiles.php] integration:check <profile>
+  config [profiles.php] telemetry:tail <profile> [lines]
+  config [profiles.php] security:check <profile>
+  config [profiles.php] check
+
+TXT;
+}
