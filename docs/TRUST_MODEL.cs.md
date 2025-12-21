@@ -78,6 +78,25 @@ Pro scénáře “hosting je kompromitovaný” musí ověřování běžet exte
 
 Tohle by mělo být standardní napojení pro `blackcat-monitoring` / `blackcat-observability`.
 
+## Transparency log / Web3 anchoring (volitelné, extreme tier)
+
+Web3 (nebo obecně append-only transparency log) může sloužit jako **externí decentralizovaná kotva** integrity:
+- publikovat Merkle root `integrity.json` (nebo celého release tree) do veřejného ledgeru,
+- později dokázat “deploy odpovídá zakotvenému rootu” (tamper-evident, globálně timestampované).
+
+Důležité poznámky:
+- Je to silný přístup pro **decentralizovanou auditovatelnost**, ale není to jediný validní model (TUF/Sigstore‑like logy + pinned keys také fungují).
+- Blockchain nenahrazuje podpisové klíče: stále potřebuješ **root-of-trust** (pinned public keys, pinned chain + adresa kontraktu).
+- Kotva se musí ověřovat **out-of-band** (sentinel/CI), jinak kompromitovaný host může kontroly prostě přeskočit.
+
+### ZK proofy (volitelné)
+
+ZK proofy dávají smysl, když chceš prokázat integritu/compliance **bez leakování detailů**, např.:
+- důkaz členství souboru v Merkle stromu bez zveřejnění kompletního seznamu,
+- důkaz “build je z approved pipeline” bez odhalení interních build metadat.
+
+Trade-off: komplexita, cena, provozní náročnost. Mělo by to být opt-in pro “extreme tier”.
+
 ## Bezpečný bootstrap / installer (high-level)
 
 - Bootstrap admina **vyžaduje HTTPS** (jinak se admin credentials nesmí vytvořit/akceptovat).
@@ -112,4 +131,4 @@ Tohle by mělo být standardní napojení pro `blackcat-monitoring` / `blackcat-
 4) Přidat runtime kontroly pro kritické soubory (config + keys dir + generated), plus safe-mode.
 5) Přidat out-of-band sentinel + monitoring/alerting šablony.
 6) Marketplace/signers: extension dev dostanou signing keys a allowlist policy (governance).
-
+7) (Extreme tier) Přidat transparency log / Web3 anchoring + volitelné ZK proofy pro privacy-preserving attestace.

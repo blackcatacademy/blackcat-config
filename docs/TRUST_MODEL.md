@@ -78,6 +78,25 @@ To defend against “host is compromised” scenarios, integrity must also be ch
 
 This should become a standard integration for `blackcat-monitoring` / `blackcat-observability`.
 
+## Transparency log / Web3 anchoring (optional, extreme tier)
+
+Web3 (or any append-only transparency log) can be used as an **external, decentralized anchor** for integrity:
+- publish a Merkle root of `integrity.json` (or of the full release tree) into a public ledger,
+- later prove “this deployed tree matches that anchored root” (tamper-evident, globally timestamped).
+
+Important notes:
+- It is a strong approach for **decentralized auditability**, but it is not the only valid model (TUF/Sigstore-style logs + pinned keys can also work).
+- A blockchain does not replace signing keys: you still need a **root-of-trust** (pinned public keys, pinned chain + contract address).
+- The anchor must be verified **out-of-band** (sentinel/CI), otherwise a compromised host can simply skip checks.
+
+### ZK proofs (optional)
+
+ZK proofs can be useful when you want to prove integrity/compliance **without leaking details**, e.g.:
+- prove membership of specific files in a Merkle tree without publishing the full file list,
+- prove “build came from an approved pipeline” without disclosing internal build metadata.
+
+Trade-offs: complexity, cost, and operational burden. This should be an opt-in “extreme tier” feature.
+
 ## Secure bootstrap / installer requirements (high-level)
 
 - Admin bootstrap **requires HTTPS** (otherwise admin credentials must not be created/accepted).
@@ -112,4 +131,4 @@ This should become a standard integration for `blackcat-monitoring` / `blackcat-
 4) Add runtime checks for critical files (config + keys dir + generated artifacts), plus emergency safe-mode.
 5) Add out-of-band sentinel + monitoring/alerting templates.
 6) Marketplace/signers: extension developers get signing keys and an allowlist policy (governance).
-
+7) (Extreme tier) Add transparency log / Web3 anchoring + optional ZK proofs for privacy-preserving attestations.
