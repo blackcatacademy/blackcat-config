@@ -7,7 +7,7 @@ Konfigurační centrum pro celou `blackcatacademy`. Stage 1 jsme dokončili sjed
 - bezpečnostní checklist (TLS, povinné proměnné, secrets placeholders),
 - integration checker (ověření, že CLI/binary závislosti existují),
 - telemetry zapisovanou do `var/log/*.ndjson`,
-- smoke test (`php tests/ProfileConfigTest.php`), který hlídá loader + checklisty.
+- smoke test (`composer test`), který hlídá loader + checklisty.
 
 ## CLI
 
@@ -29,7 +29,9 @@ Kanál je konfigurovatelný v `config/profiles.php` (výchozí `file://.../var/l
 ## Tests
 
 ```
-php tests/ProfileConfigTest.php
+composer test
+# nebo:
+vendor/bin/phpunit
 ```
 
-Test loaderu validuje všechny profily přes security/integration checklisty.
+Testy validují profily přes security checklist a jednotkově ověřují chování integration checkeru.

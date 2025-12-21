@@ -1,39 +1,30 @@
-#!/usr/bin/env php
 <?php
 
 declare(strict_types=1);
 
-require __DIR__ . '/../src/autoload.php';
+namespace BlackCat\Config\Tests;
 
 use BlackCat\Config\Config\ProfileConfig;
-use BlackCat\Config\Integration\IntegrationChecker;
 use BlackCat\Config\Security\SecurityChecklist;
+use PHPUnit\Framework\TestCase;
 
-$config = ProfileConfig::fromFile(__DIR__ . '/../config/profiles.php');
-$security = new SecurityChecklist();
-$integrations = new IntegrationChecker();
+final class ProfileConfigTest extends TestCase
+{
+    public function testAllProfilesPassSecurityChecklist(): void
+    {
+        $config = ProfileConfig::fromFile(__DIR__ . '/../config/profiles.php');
+        self::assertNotSame([], $config->profiles());
 
-$failures = [];
+        $security = new SecurityChecklist();
 
-foreach ($config->profiles() as $profile) {
-    $issues = array_merge(
-        $security->validate($profile),
-        $integrations->check($profile)
-    );
+        foreach ($config->profiles() as $profile) {
+            $issues = $security->validate($profile);
 
-    if ($issues !== []) {
-        $failures[$profile->name()] = $issues;
-    }
-}
-
-if ($failures !== []) {
-    foreach ($failures as $name => $issues) {
-        fwrite(STDERR, "[{$name}]" . PHP_EOL);
-        foreach ($issues as $issue) {
-            fwrite(STDERR, "  - {$issue}" . PHP_EOL);
+            self::assertSame(
+                [],
+                $issues,
+                $profile->name() . ': ' . implode('; ', $issues)
+            );
         }
     }
-    exit(1);
 }
-
-echo "ProfileConfig tests passed (" . count($config->profiles()) . " profiles)." . PHP_EOL;
