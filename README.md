@@ -7,8 +7,6 @@ This repo is intentionally **security-first**:
 - **File-based runtime config** for environments where `getenv()`/ENV is blocked.
 - Permission checks to prevent config/keys path tampering.
 
-For the Czech README, see `README.cs.md`.
-
 ## Stage 1: Profiles + CLI
 
 Stage 1 focuses on “profiles” (dev/staging/prod) and operational checks:
@@ -55,7 +53,6 @@ Penetration-style tests live in `tests/Security/SecureFileTest.php`.
 
 Encryption requires a clear trust model (provenance + tamper detection). Design notes:
 - `blackcat-config/docs/TRUST_MODEL.md`
-- `blackcat-config/docs/TRUST_MODEL.cs.md`
 
 ## Stage 3: Config discovery helpers
 

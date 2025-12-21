@@ -1,18 +1,18 @@
 # Config Hub – Roadmap
 
 ## Stage 1 – Foundation ✅
-- Loader agreguje defaults + profiles a exponuje CLI (`profile:*`, `integration:*`, `security:*`, `telemetry:*`).
-- `profiles.php` obsahuje dev/staging/prod profile + env šablony, telemetry a integrace na installer/database/messaging/governance.
-- Telemetry (.ndjson) a smoke test (`php tests/ProfileConfigTest.php`) drží dohled, `bin/config check` běží security/integration checklist.
+- Loader aggregates defaults + profiles and exposes CLI (`profile:*`, `integration:*`, `security:*`, `telemetry:*`).
+- `profiles.php` includes dev/staging/prod profiles + env templates, telemetry, and integrations for installer/database/messaging/governance.
+- Telemetry (.ndjson) and smoke test (`php tests/ProfileConfigTest.php`) keep baseline coverage; `bin/config check` runs security/integration checklists.
 
 ## Stage 2 – Installer Integration
-- generovat `installer.yaml`/env overlay pro `blackcat-installer` a `blackcat-deployer`.
-- CLI příkaz `installer:plan` popíše změny mezi profily (diff env/proměnných).
-- telemetry feed posílat do `blackcat-observability`.
+- Generate `installer.yaml` / env overlays for `blackcat-installer` and `blackcat-deployer`.
+- CLI command `installer:plan` describes changes between profiles (env variable diff).
+- Send telemetry feed into `blackcat-observability`.
 
 ## Stage 3 – Secrets Management (Vault integration)
-- definovat secret backends, mapping role-id/tokenů, CLI pro seeding secret store.
-- `security:check` validuje napojení na Vault/KMS a audituje secret placeholders.
+- Define secret backends, map role-id/tokens, and provide CLI for seeding the secret store.
+- `security:check` validates Vault/KMS integration and audits secret placeholders.
 
 ## Stage 4 – Cross-Ecosystem Automation
 - Wire blackcat-config services into installer/orchestrator pipelines for push-button deployments.
@@ -25,7 +25,7 @@
 - Runtime safe-mode on detected tampering (no silent bypass).
 - Out-of-band watchdog/sentinel integration (monitoring/alerting).
 
-## Stage 5 – Continuous AI Augmentation
+## Stage 6 – Continuous AI Augmentation
 - Ship AI-ready manifests/tutorials enabling GPT installers to compose blackcat-config stacks autonomously.
 - Add self-healing + policy feedback loops leveraging blackcat-agent, blackcat-governance, and marketplace signals.
 - Feed anonymized adoption data to blackcat-usage and reward contributors via blackcat-payout.
