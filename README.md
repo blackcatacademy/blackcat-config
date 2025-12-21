@@ -35,3 +35,23 @@ vendor/bin/phpunit
 ```
 
 Testy validují profily přes security checklist a jednotkově ověřují chování integration checkeru.
+
+## Runtime config (Stage 2 – security core)
+
+Některé systémy blokují `getenv()` / ENV obecně. Pro runtime proto přidáváme **file-based config** s fail‑closed security kontrolami (bez env bypassů):
+
+```php
+use BlackCat\Config\Runtime\Config;
+
+// Strict default policy: žádné symlinky, žádná world-readable/writable, žádná group-writable.
+Config::initFromJsonFile('/etc/blackcat/config.json');
+
+$dsn = Config::requireString('db.dsn'); // dot-notation
+```
+
+Bezpečnostní pravidla pro soubor (defaultně):
+- config soubor nesmí být symlink
+- config soubor nesmí být world-readable / group-writable / world-writable
+- adresáře v cestě nesmí být group/world-writable (výjimka: sticky dirs typu `/tmp`), aby nešlo config podstrčit přes filesystem
+
+Penetrační testy jsou v `tests/Security/SecureFileTest.php`.

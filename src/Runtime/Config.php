@@ -1,0 +1,56 @@
+<?php
+
+declare(strict_types=1);
+
+namespace BlackCat\Config\Runtime;
+
+use BlackCat\Config\Security\ConfigFilePolicy;
+
+/**
+ * Global config facade (opt-in).
+ *
+ * Intended usage:
+ *   Config::initFromJsonFile('/etc/blackcat/config.json');
+ *   $dsn = Config::requireString('db.dsn');
+ */
+final class Config
+{
+    private static ?ConfigRepository $repo = null;
+
+    public static function isInitialized(): bool
+    {
+        return self::$repo !== null;
+    }
+
+    public static function init(ConfigRepository $repo): void
+    {
+        if (self::$repo !== null) {
+            throw new \RuntimeException('Config already initialized.');
+        }
+        self::$repo = $repo;
+    }
+
+    public static function initFromJsonFile(string $path, ?ConfigFilePolicy $policy = null): void
+    {
+        self::init(ConfigRepository::fromJsonFile($path, $policy));
+    }
+
+    public static function repo(): ConfigRepository
+    {
+        if (self::$repo === null) {
+            throw new \RuntimeException('Config is not initialized.');
+        }
+        return self::$repo;
+    }
+
+    public static function get(string $key, mixed $default = null): mixed
+    {
+        return self::repo()->get($key, $default);
+    }
+
+    public static function requireString(string $key): string
+    {
+        return self::repo()->requireString($key);
+    }
+}
+
