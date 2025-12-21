@@ -1,57 +1,83 @@
-# BlackCat Config Hub
+# BlackCat Config
 
-Konfigurační centrum pro celou `blackcatacademy`. Stage 1 jsme dokončili sjednocením loaderu, CLI a kontrolních nástrojů tak, aby každý profil (dev/staging/prod) měl:
+Central configuration and hardening layer for the `blackcatacademy` ecosystem.
 
-- jednotný `profiles.php` s defaults (env proměnné, integrace na sousední repa, telemetry cíle),
-- renderování `.env` šablon + export profile metadata,
-- bezpečnostní checklist (TLS, povinné proměnné, secrets placeholders),
-- integration checker (ověření, že CLI/binary závislosti existují),
-- telemetry zapisovanou do `var/log/*.ndjson`,
-- smoke test (`composer test`), který hlídá loader + checklisty.
+This repo is intentionally **security-first**:
+- **Fail-closed** defaults (no “env bypass” switches for security-critical paths).
+- **File-based runtime config** for environments where `getenv()`/ENV is blocked.
+- Permission checks to prevent config/keys path tampering.
 
-## CLI
+For the Czech README, see `README.cs.md`.
 
-```
+## Stage 1: Profiles + CLI
+
+Stage 1 focuses on “profiles” (dev/staging/prod) and operational checks:
+- unified `profiles.php` with defaults (env vars, integrations, telemetry sinks),
+- `.env` template rendering + profile metadata export,
+- security checklist (TLS, required vars, secret placeholders),
+- integration checker (required binaries/CLIs),
+- telemetry to `var/log/*.ndjson`,
+- smoke test (`composer test`) to keep the pipeline stable.
+
+### CLI
+
+```bash
 php bin/config profile:list
 php bin/config profile:env dev
 php bin/config profile:render-env staging build/staging.env
 php bin/config integration:check prod
 php bin/config security:check prod
-php bin/config check                   # spustí celý Stage 1 checklist
+php bin/config check
 ```
 
-První argument může být custom cesta k `profiles.php`, jinak se použije `config/profiles.php`. Každý příkaz zapše telemetry event (viz `var/log`).
+The first argument can be a custom `profiles.php` path; otherwise `config/profiles.php` is used.
 
-## Telemetry
+## Stage 2: Runtime config (security core)
 
-Kanál je konfigurovatelný v `config/profiles.php` (výchozí `file://.../var/log/config-*.ndjson`). `telemetry:tail <profile>` vypíše poslední záznamy.
-
-## Tests
-
-```
-composer test
-# nebo:
-vendor/bin/phpunit
-```
-
-Testy validují profily přes security checklist a jednotkově ověřují chování integration checkeru.
-
-## Runtime config (Stage 2 – security core)
-
-Některé systémy blokují `getenv()` / ENV obecně. Pro runtime proto přidáváme **file-based config** s fail‑closed security kontrolami (bez env bypassů):
+Some runtimes block `getenv()`/ENV entirely. Stage 2 provides **file-based runtime config** with strict permission checks:
 
 ```php
 use BlackCat\Config\Runtime\Config;
 
-// Strict default policy: žádné symlinky, žádná world-readable/writable, žádná group-writable.
 Config::initFromJsonFile('/etc/blackcat/config.json');
 
 $dsn = Config::requireString('db.dsn'); // dot-notation
 ```
 
-Bezpečnostní pravidla pro soubor (defaultně):
-- config soubor nesmí být symlink
-- config soubor nesmí být world-readable / group-writable / world-writable
-- adresáře v cestě nesmí být group/world-writable (výjimka: sticky dirs typu `/tmp`), aby nešlo config podstrčit přes filesystem
+Default security rules (POSIX):
+- config file must not be a symlink
+- config file must not be world-readable / group-writable / world-writable
+- parent directories must not be group/world-writable (sticky dirs like `/tmp` are allowed)
 
-Penetrační testy jsou v `tests/Security/SecureFileTest.php`.
+Penetration-style tests live in `tests/Security/SecureFileTest.php`.
+
+## Stage 3: Config discovery helpers
+
+If you need deterministic discovery (without env), use:
+
+```php
+use BlackCat\Config\Runtime\Config;
+
+Config::initFromFirstAvailableJsonFileIfNeeded(); // default locations
+```
+
+Default candidates are defined in `blackcat-config/src/Runtime/ConfigBootstrap.php`.
+
+## Stage 4+: Runtime crypto config validation
+
+Security-critical crypto settings can be validated before boot:
+
+```php
+use BlackCat\Config\Runtime\Config;
+use BlackCat\Config\Runtime\RuntimeConfigValidator;
+
+RuntimeConfigValidator::assertCryptoConfig(Config::repo());
+```
+
+Validation includes:
+- `crypto.keys_dir` is required and must be a secure directory (`SecureDir`)
+- `crypto.manifest` is optional; public-readable is allowed, but it must not be writable/symlink
+
+Relevant tests:
+- `blackcat-config/tests/Security/SecureDirTest.php`
+- `blackcat-config/tests/Runtime/RuntimeConfigValidatorTest.php`
