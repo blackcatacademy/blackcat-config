@@ -28,5 +28,21 @@ final class ConfigFilePolicy
     {
         return new self();
     }
-}
 
+    /**
+     * Policy for non-secret JSON files (e.g. crypto manifest).
+     *
+     * Allows world-readable files, but still blocks writable perms and symlinks.
+     */
+    public static function publicReadable(): self
+    {
+        return new self(
+            allowSymlinks: false,
+            allowWorldReadable: true,
+            allowGroupWritable: false,
+            allowWorldWritable: false,
+            maxBytes: 1024 * 1024,
+            checkParentDirs: true,
+        );
+    }
+}
