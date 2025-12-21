@@ -13,6 +13,18 @@ Even “perfect crypto” cannot protect a system that can be silently reconfigu
 - Prevent/mitigate common real-world compromises (FTP mistakes, shared hosting, weak file permissions, partial updates).
 - Keep the ecosystem modular: core libraries stay IO-free; CLI/monitoring/updater are separate repos.
 
+## Post-quantum readiness (why “extreme” becomes baseline)
+
+The “post‑quantum era” mostly threatens **asymmetric crypto** (signatures, key exchange). Symmetric crypto (AEAD/HMAC) is much less impacted (usually “use 256-bit keys”), but the **trust layer** (supply-chain signatures, transparency logs, installer bootstrap) is signature-heavy and must stay upgradeable.
+
+Design principles:
+- **Crypto agility**: all integrity metadata must carry explicit `algorithm` identifiers, key ids, and allow future formats without breaking verifiers.
+- **Multi-signature support**: manifests should allow multiple signatures (e.g. classical + PQ) during migration.
+- **Key agility**: pinned roots must support rotation and overlap windows (multiple trusted public keys).
+- **Hybrid verification policy**: tier-based rules like “require classical+PQ” (extreme), “require at least one” (high), etc.
+
+Also note: “decentralized anchoring” (Web3 / transparency logs) improves auditability, but it does not remove the need for a pinned root-of-trust. In practice you need **both**: (a) signed manifests and (b) an out-of-band anchor.
+
 ## Threats / gaps we must close
 
 1) **No provenance check after install**

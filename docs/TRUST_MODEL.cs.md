@@ -13,6 +13,18 @@ I “perfektní kryptografie” nepomůže, pokud jde systém potichu přenastav
 - Omezit reálné útoky (FTP chyba, kompromitovaný hosting, slabá práva, neúplné aktualizace).
 - Udržet modularitu: čisté knihovny bez IO; CLI/monitoring/updater zvlášť repo.
 
+## Post‑kvantová připravenost (proč “extrém” bude standard)
+
+„Post‑kvantová éra“ ohrožuje hlavně **asymetrickou kryptografii** (podpisy, key exchange). Symetrická (AEAD/HMAC) je ovlivněná výrazně méně (typicky „používat 256-bit klíče“), ale **trust layer** (supply-chain podpisy, transparency logy, bootstrap instalátoru) je plný podpisů a musí být snadno upgradovatelný.
+
+Principy návrhu:
+- **Crypto agility**: integritní metadata musí mít explicitní `algorithm` identifikátory, key id a umožnit nové formáty bez rozbití verifierů.
+- **Multi-signature**: manifest musí umět více podpisů (např. klasický + PQ) po dobu migrace.
+- **Key agility**: pinned roots musí umět rotaci a overlap okna (více důvěryhodných public key současně).
+- **Hybrid policy**: tier-based pravidla typu „vyžadovat klasický+PQ“ (extreme), „stačí aspoň jeden“ (high), atd.
+
+Pozn.: decentralizované kotvení (Web3 / transparency log) zvyšuje auditovatelnost, ale nenahrazuje pinned root-of-trust. V praxi potřebuješ **obojí**: (a) podepsané manifesty a (b) out-of-band kotvu.
+
 ## Bezpečnostní díry, které musíme zavřít
 
 1) **Po instalaci se neověřuje původ/verze**
