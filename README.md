@@ -51,6 +51,12 @@ Default security rules (POSIX):
 
 Penetration-style tests live in `tests/Security/SecureFileTest.php`.
 
+## Trust model & integrity
+
+Encryption requires a clear trust model (provenance + tamper detection). Design notes:
+- `blackcat-config/docs/TRUST_MODEL.md`
+- `blackcat-config/docs/TRUST_MODEL.cs.md`
+
 ## Stage 3: Config discovery helpers
 
 If you need deterministic discovery (without env), use:

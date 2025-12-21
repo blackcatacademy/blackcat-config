@@ -19,6 +19,12 @@
 - Expand contract tests covering dependencies listed in ECOSYSTEM.md.
 - Publish metrics/controls so observability, security, and governance repos can reason about blackcat-config automatically.
 
+## Stage 5 – Trust & Integrity (Supply Chain)
+- Signed integrity manifests (checksums + signatures) for official releases.
+- Installer/deployer gates: refuse to enable traffic on mismatch.
+- Runtime safe-mode on detected tampering (no silent bypass).
+- Out-of-band watchdog/sentinel integration (monitoring/alerting).
+
 ## Stage 5 – Continuous AI Augmentation
 - Ship AI-ready manifests/tutorials enabling GPT installers to compose blackcat-config stacks autonomously.
 - Add self-healing + policy feedback loops leveraging blackcat-agent, blackcat-governance, and marketplace signals.
