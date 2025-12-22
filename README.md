@@ -64,7 +64,15 @@ use BlackCat\Config\Runtime\Config;
 Config::initFromFirstAvailableJsonFileIfNeeded(); // default locations
 ```
 
-Default candidates are defined in `blackcat-config/src/Runtime/ConfigBootstrap.php`.
+Default candidates are defined in `blackcat-config/src/Runtime/ConfigBootstrap.php` and are platform-specific.
+
+Defaults (summary):
+- POSIX: `/etc/blackcat/*.json`, `/run/secrets/*.json`, plus user paths like `~/.config/blackcat/*.json`.
+- Windows: `C:\ProgramData\BlackCat\*.json` and `%APPDATA%\BlackCat\*.json` when available.
+
+Discovery behavior:
+- if a candidate file exists but is rejected (permissions/symlink/invalid JSON), discovery continues to the next one
+- `loadFirstAvailableJsonFile()` reports rejected files in the exception message (diagnostics)
 
 ## Stage 4+: Runtime crypto config validation
 
