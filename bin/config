@@ -18,7 +18,6 @@ use BlackCat\Config\Security\SecurityChecklist;
 use BlackCat\Config\Telemetry\TelemetryEmitter;
 use BlackCat\Config\Runtime\RuntimeConfigInstaller;
 use BlackCat\Config\Runtime\ConfigBootstrap;
-use Throwable;
 
 $args = $_SERVER['argv'] ?? [];
 array_shift($args);
@@ -73,7 +72,7 @@ if (str_starts_with($command, 'runtime:')) {
                 $res = RuntimeConfigInstaller::init([], $target, $force);
                 echo json_encode($res, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
                 exit(0);
-            } catch (Throwable $exception) {
+            } catch (\Throwable $exception) {
                 fwrite(STDERR, $exception->getMessage() . PHP_EOL);
                 exit(2);
             }
@@ -87,7 +86,7 @@ if (str_starts_with($command, 'runtime:')) {
 
 try {
     $profileConfig = ProfileConfig::fromFile($configPath);
-} catch (Throwable $exception) {
+} catch (\Throwable $exception) {
     fwrite(STDERR, "Unable to load config: {$exception->getMessage()}" . PHP_EOL);
     exit(1);
 }
@@ -101,7 +100,7 @@ $emit = static function (string $event, array $context = [], ?ConfigProfile $pro
     $channel = $profile?->telemetryChannel($defaultTelemetry) ?? $defaultTelemetry;
     try {
         TelemetryEmitter::forChannel($channel)->emit($event, $context);
-    } catch (Throwable $exception) {
+    } catch (\Throwable $exception) {
         fwrite(STDERR, "[telemetry] {$exception->getMessage()}" . PHP_EOL);
     }
 };
@@ -240,7 +239,7 @@ function requireProfile(ProfileConfig $config, ?string $name): ConfigProfile
 
     try {
         return $config->require($name);
-    } catch (Throwable $exception) {
+    } catch (\Throwable $exception) {
         fwrite(STDERR, $exception->getMessage() . PHP_EOL);
         exit(1);
     }
