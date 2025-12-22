@@ -35,5 +35,30 @@ final class RuntimeConfigValidator
 
         SecureFile::assertSecureReadableFile($manifest, ConfigFilePolicy::publicReadable());
     }
-}
 
+    /**
+     * Validate observability local-store config.
+     *
+     * Required:
+     * - observability.storage_dir (secure directory)
+     *
+     * Optional:
+     * - observability.service (non-empty string)
+     */
+    public static function assertObservabilityConfig(ConfigRepository $repo): void
+    {
+        $storageDir = $repo->requireString('observability.storage_dir');
+        SecureDir::assertSecureReadableDir($storageDir, ConfigDirPolicy::secretsDir());
+
+        $service = $repo->get('observability.service');
+        if ($service === null || $service === '') {
+            return;
+        }
+        if (!is_string($service)) {
+            throw new \RuntimeException('Invalid config type for observability.service (expected string).');
+        }
+        if (trim($service) === '') {
+            throw new \RuntimeException('Invalid config value for observability.service (expected non-empty string).');
+        }
+    }
+}
