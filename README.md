@@ -74,6 +74,15 @@ Discovery behavior:
 - if a candidate file exists but is rejected (permissions/symlink/invalid JSON), discovery continues to the next one
 - `loadFirstAvailableJsonFile()` reports rejected files in the exception message (diagnostics)
 
+To create a runtime config file in the best available location (auto-recommended), use:
+
+```bash
+php bin/config runtime:recommend
+php bin/config runtime:init
+```
+
+`runtime:init` creates (or reuses) the first path that can be made valid under strict rules.
+
 ## Stage 4+: Runtime crypto config validation
 
 Security-critical crypto settings can be validated before boot:

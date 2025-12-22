@@ -16,6 +16,8 @@ use BlackCat\Config\Integration\IntegrationChecker;
 use BlackCat\Config\Profile\ConfigProfile;
 use BlackCat\Config\Security\SecurityChecklist;
 use BlackCat\Config\Telemetry\TelemetryEmitter;
+use BlackCat\Config\Runtime\RuntimeConfigInstaller;
+use BlackCat\Config\Runtime\ConfigBootstrap;
 use Throwable;
 
 $args = $_SERVER['argv'] ?? [];
@@ -28,6 +30,60 @@ if ($args !== [] && is_file($args[0])) {
 
 $command = $args[0] ?? 'profile:list';
 $commandArgs = array_slice($args, 1);
+
+// Runtime config commands do not depend on profiles.php.
+if (str_starts_with($command, 'runtime:')) {
+    switch ($command) {
+        case 'runtime:paths':
+            echo json_encode([
+                'write_paths' => RuntimeConfigInstaller::defaultWritePaths(),
+                'read_paths' => ConfigBootstrap::defaultJsonPaths(),
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+            exit(0);
+
+        case 'runtime:recommend':
+            echo json_encode(
+                RuntimeConfigInstaller::recommendWritePath(),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+            ) . PHP_EOL;
+            exit(0);
+
+        case 'runtime:init':
+            $force = in_array('--force', $commandArgs, true);
+            $target = null;
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg)) {
+                    continue;
+                }
+                if (str_starts_with($arg, '--path=')) {
+                    $target = substr($arg, 7);
+                }
+                if (str_starts_with($arg, '--out=')) {
+                    $target = substr($arg, 6);
+                }
+            }
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+                    continue;
+                }
+                $target ??= $arg;
+            }
+
+            try {
+                $res = RuntimeConfigInstaller::init([], $target, $force);
+                echo json_encode($res, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+                exit(0);
+            } catch (Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
+
+        default:
+            printHelp();
+            fwrite(STDERR, "Unknown command {$command}\n");
+            exit(1);
+    }
+}
 
 try {
     $profileConfig = ProfileConfig::fromFile($configPath);
@@ -206,6 +262,9 @@ Usage:
   config [profiles.php] telemetry:tail <profile> [lines]
   config [profiles.php] security:check <profile>
   config [profiles.php] check
+  config runtime:paths
+  config runtime:recommend
+  config runtime:init [--force] [--path=FILE]
 
 TXT;
 }
