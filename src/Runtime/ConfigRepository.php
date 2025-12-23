@@ -80,6 +80,22 @@ final class ConfigRepository
         return $val;
     }
 
+    public function requireInt(string $key): int
+    {
+        $val = $this->get($key);
+        if (is_int($val)) {
+            return $val;
+        }
+        if (is_string($val)) {
+            $trimmed = trim($val);
+            if ($trimmed !== '' && ctype_digit($trimmed)) {
+                return (int) $trimmed;
+            }
+        }
+
+        throw new \RuntimeException('Missing required config integer: ' . $key);
+    }
+
     /**
      * @return array<string,mixed>
      */
@@ -88,4 +104,3 @@ final class ConfigRepository
         return $this->data;
     }
 }
-

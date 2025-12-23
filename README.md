@@ -104,3 +104,41 @@ Validation includes:
 Relevant tests:
 - `blackcat-config/tests/Security/SecureDirTest.php`
 - `blackcat-config/tests/Runtime/RuntimeConfigValidatorTest.php`
+
+## Stage 5: Trust kernel config (Web3 / EVM)
+
+Runtime config keys (recommended baseline):
+
+```json
+{
+  "trust": {
+    "web3": {
+      "chain_id": 4207,
+      "rpc_endpoints": ["https://rpc.layeredge.io"],
+      "rpc_quorum": 1,
+      "max_stale_sec": 180,
+      "mode": "root_uri",
+      "contracts": {
+        "instance_controller": "0x1111111111111111111111111111111111111111",
+        "release_registry": "0x2222222222222222222222222222222222222222"
+      },
+      "tx_outbox_dir": "/var/lib/blackcat/tx-outbox"
+    }
+  }
+}
+```
+
+Defaults and rules:
+- `max_stale_sec` recommended production default is `180` (fail-closed after stale).
+- RPC endpoints must be `https://` (plain HTTP is allowed only for localhost).
+- `rpc_quorum` must be in `1..count(rpc_endpoints)`.
+
+Validate Web3 trust-kernel config:
+
+```php
+use BlackCat\Config\Runtime\Config;
+use BlackCat\Config\Runtime\RuntimeConfigValidator;
+
+Config::initFromFirstAvailableJsonFile();
+RuntimeConfigValidator::assertTrustKernelWeb3Config(Config::repo());
+```

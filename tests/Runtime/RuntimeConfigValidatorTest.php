@@ -108,6 +108,96 @@ final class RuntimeConfigValidatorTest extends TestCase
         }
     }
 
+    public function testTrustKernelValidatorIsNoOpWhenNotConfigured(): void
+    {
+        $repo = ConfigRepository::fromArray(['crypto' => ['keys_dir' => '/tmp']]);
+        RuntimeConfigValidator::assertTrustKernelWeb3Config($repo);
+        self::assertTrue(true);
+    }
+
+    public function testTrustKernelConfigRequiresChainIdWhenTrustPresent(): void
+    {
+        $repo = ConfigRepository::fromArray(['trust' => ['web3' => []]]);
+        $this->expectException(\RuntimeException::class);
+        RuntimeConfigValidator::assertTrustKernelWeb3Config($repo);
+    }
+
+    public function testTrustKernelConfigValidatesBasicFields(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('POSIX permissions required.');
+        }
+
+        $outboxDir = $this->makeTmpDir(0700);
+        try {
+            $repo = ConfigRepository::fromArray([
+                'trust' => [
+                    'web3' => [
+                        'chain_id' => 4207,
+                        'rpc_endpoints' => [
+                            'https://rpc.layeredge.io',
+                        ],
+                        'rpc_quorum' => 1,
+                        'max_stale_sec' => 180,
+                        'mode' => 'root_uri',
+                        'contracts' => [
+                            'instance_controller' => '0x1111111111111111111111111111111111111111',
+                            'release_registry' => '0x2222222222222222222222222222222222222222',
+                            'instance_factory' => '0x3333333333333333333333333333333333333333',
+                        ],
+                        'tx_outbox_dir' => $outboxDir,
+                    ],
+                ],
+            ]);
+
+            RuntimeConfigValidator::assertTrustKernelWeb3Config($repo);
+            self::assertTrue(true);
+        } finally {
+            @rmdir($outboxDir);
+        }
+    }
+
+    public function testTrustKernelConfigRejectsNonTlsRpcEndpoint(): void
+    {
+        $repo = ConfigRepository::fromArray([
+            'trust' => [
+                'web3' => [
+                    'chain_id' => 4207,
+                    'rpc_endpoints' => ['http://rpc.layeredge.io'],
+                    'rpc_quorum' => 1,
+                    'contracts' => [
+                        'instance_controller' => '0x1111111111111111111111111111111111111111',
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        RuntimeConfigValidator::assertTrustKernelWeb3Config($repo);
+    }
+
+    public function testTrustKernelConfigRejectsQuorumAboveEndpointsCount(): void
+    {
+        $repo = ConfigRepository::fromArray([
+            'trust' => [
+                'web3' => [
+                    'chain_id' => 4207,
+                    'rpc_endpoints' => [
+                        'https://rpc.layeredge.io',
+                        'https://rpc.layeredge.io',
+                    ],
+                    'rpc_quorum' => 3,
+                    'contracts' => [
+                        'instance_controller' => '0x1111111111111111111111111111111111111111',
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        RuntimeConfigValidator::assertTrustKernelWeb3Config($repo);
+    }
+
     private function makeTmpDir(int $mode): string
     {
         $tmpBase = rtrim(sys_get_temp_dir(), '/\\');

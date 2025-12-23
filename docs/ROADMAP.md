@@ -19,11 +19,23 @@
 - Expand contract tests covering dependencies listed in ECOSYSTEM.md.
 - Publish metrics/controls so observability, security, and governance repos can reason about blackcat-config automatically.
 
-## Stage 5 – Trust & Integrity (Supply Chain)
+## Stage 5 – Trust & Integrity (Supply Chain + Web3)
 - Signed integrity manifests (checksums + signatures) for official releases.
-- Installer/deployer gates: refuse to enable traffic on mismatch.
-- Runtime safe-mode on detected tampering (no silent bypass).
-- Out-of-band watchdog/sentinel integration (monitoring/alerting).
+- Web3 anchoring as the default “trust authority” baseline:
+  - per-install on-chain controller contract records the attested state (install + upgrades),
+  - tiered modes: `root+uri` (cheap) vs `full detail` (paranoid/costly).
+- Runtime config becomes the only source of truth for trust-critical settings (no env bypass):
+  - `trust.web3.chain_id`, `trust.web3.rpc_endpoints[]`, `trust.web3.rpc_quorum`,
+  - `trust.web3.max_stale_sec` (recommended prod default: `180`),
+  - `trust.web3.mode` (`root_uri` | `full`),
+  - `trust.web3.contracts.*` (registry + per-install controller addresses),
+  - `trust.web3.tx_outbox_dir` for buffered transactions during RPC outages.
+- Auto-recommend the **best writable runtime config location** per host:
+  - prefer real POSIX-permissioned filesystems (e.g. `/etc/blackcat/`, `/var/lib/blackcat/`),
+  - detect “weak” mounts (e.g. `/mnt/c` on Windows) and downgrade to “dev/warn-only” unless explicitly overridden.
+- Installer/deployer gates: refuse to enable traffic on mismatch (prod), produce explicit warnings (dev).
+- Runtime safe-mode on detected tampering (no silent bypass in production profiles).
+- Out-of-band watchdog/sentinel integration (monitoring/alerting + CI/CD preflight checks).
 
 ## Stage 6 – Continuous AI Augmentation
 - Ship AI-ready manifests/tutorials enabling GPT installers to compose blackcat-config stacks autonomously.

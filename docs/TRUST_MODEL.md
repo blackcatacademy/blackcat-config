@@ -90,9 +90,14 @@ To defend against “host is compromised” scenarios, integrity must also be ch
 
 This should become a standard integration for `blackcat-monitoring` / `blackcat-observability`.
 
-## Transparency log / Web3 anchoring (optional, extreme tier)
+## Transparency log / Web3 anchoring (baseline, tiered)
 
-Web3 (or any append-only transparency log) can be used as an **external, decentralized anchor** for integrity:
+Web3 (or any append-only transparency log) can be used as an **external, decentralized anchor** for integrity.
+In v1 BlackCat, this is the intended **baseline** trust authority for production deployments, with tiered modes:
+- `root+uri` (cheap baseline): anchor the root plus a content pointer,
+- `full detail` (paranoid): anchor more on-chain detail (costly).
+
+Typical use:
 - publish a Merkle root of `integrity.json` (or of the full release tree) into a public ledger,
 - later prove “this deployed tree matches that anchored root” (tamper-evident, globally timestamped).
 
