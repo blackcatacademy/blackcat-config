@@ -9,6 +9,49 @@ use PHPUnit\Framework\TestCase;
 
 final class RuntimeConfigInstallerTest extends TestCase
 {
+    public function testRecommendWritePathSkipsInsecureDirAndUsesNext(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('POSIX permissions required.');
+        }
+
+        $base = $this->makeTmpDir(0700);
+        $badDir = $base . '/bad';
+        $goodDir = $base . '/good';
+
+        mkdir($badDir, 0777, true);
+        @chmod($badDir, 0777);
+
+        mkdir($goodDir, 0700, true);
+        @chmod($goodDir, 0700);
+
+        $badPath = $badDir . '/config.runtime.json';
+        $goodPath = $goodDir . '/config.runtime.json';
+
+        try {
+            $rec = RuntimeConfigInstaller::recommendWritePath([$badPath, $goodPath]);
+            self::assertSame($goodPath, $rec['path']);
+            self::assertArrayHasKey($badPath, $rec['rejected']);
+        } finally {
+            @unlink($badPath);
+            @unlink($goodPath);
+            @rmdir($badDir);
+            @rmdir($goodDir);
+            @rmdir($base);
+        }
+    }
+
+    public function testIsLikelyWindowsMountPathDetectsWslDrives(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('WSL detection is POSIX-only.');
+        }
+
+        self::assertTrue(RuntimeConfigInstaller::isLikelyWindowsMountPath('/mnt/c/Users/jaine/.blackcat/config.runtime.json'));
+        self::assertTrue(RuntimeConfigInstaller::isLikelyWindowsMountPath('/mnt/D/blackcat/config.runtime.json'));
+        self::assertFalse(RuntimeConfigInstaller::isLikelyWindowsMountPath('/home/jaine/.config/blackcat/config.runtime.json'));
+    }
+
     public function testInitSkipsInsecureCandidateAndUsesNext(): void
     {
         if (DIRECTORY_SEPARATOR === '\\') {
@@ -84,4 +127,3 @@ final class RuntimeConfigInstallerTest extends TestCase
         return $dir;
     }
 }
-

@@ -31,7 +31,13 @@ final class RuntimeConfigInstaller
      * Recommend the best writable path (without writing).
      *
      * @param list<string>|null $candidates
-     * @return array{path:?string,reason:string,rejected:array<string,string>,candidates:list<string>}
+     * @return array{
+     *   path:?string,
+     *   reason:string,
+     *   rejected:array<string,string>,
+     *   candidates:list<string>,
+     *   analysis:list<array{path:string,status:string,score:int,reason:string}>
+     * }
      */
     public static function recommendWritePath(?array $candidates = null): array
     {
@@ -48,38 +54,38 @@ final class RuntimeConfigInstaller
         $normalized = array_values(array_unique($normalized));
 
         $rejected = [];
+        /** @var list<array{path:string,status:string,score:int,reason:string}> $analysis */
+        $analysis = [];
+
+        /** @var array{path:string,status:string,score:int,reason:string}|null $best */
+        $best = null;
 
         foreach ($normalized as $path) {
-            if (is_file($path)) {
-                try {
-                    SecureFile::assertSecureReadableFile($path, ConfigFilePolicy::strict());
-                    return [
-                        'path' => $path,
-                        'reason' => 'Existing runtime config file is present and passes strict validation.',
-                        'rejected' => $rejected,
-                        'candidates' => $normalized,
-                    ];
-                } catch (\Throwable $e) {
-                    $rejected[$path] = $e->getMessage();
-                    continue;
-                }
-            }
+            $eval = self::evaluateWriteCandidate($path);
+            $analysis[] = [
+                'path' => $eval['path'],
+                'status' => $eval['status'],
+                'score' => $eval['score'],
+                'reason' => $eval['reason'],
+            ];
 
-            $parent = self::nearestExistingDir(dirname($path));
-            if ($parent === null) {
-                $rejected[$path] = 'No existing parent directory found.';
-                continue;
-            }
-            if (!is_writable($parent)) {
-                $rejected[$path] = 'Parent directory is not writable: ' . $parent;
+            if ($eval['status'] === 'reject') {
+                $rejected[$path] = $eval['reason'];
                 continue;
             }
 
+            if ($best === null || $eval['score'] > $best['score']) {
+                $best = $eval;
+            }
+        }
+
+        if ($best !== null) {
             return [
-                'path' => $path,
-                'reason' => 'Parent directory is writable: ' . $parent,
+                'path' => $best['path'],
+                'reason' => $best['reason'],
                 'rejected' => $rejected,
                 'candidates' => $normalized,
+                'analysis' => $analysis,
             ];
         }
 
@@ -88,6 +94,7 @@ final class RuntimeConfigInstaller
             'reason' => 'No writable candidate path found.',
             'rejected' => $rejected,
             'candidates' => $normalized,
+            'analysis' => $analysis,
         ];
     }
 
@@ -257,6 +264,200 @@ final class RuntimeConfigInstaller
         }
 
         return is_dir(DIRECTORY_SEPARATOR) ? DIRECTORY_SEPARATOR : null;
+    }
+
+    /**
+     * Evaluate a candidate path for writing runtime config.
+     *
+     * Important: this must stay aligned with {@see self::ensureRuntimeConfigFile()}
+     * (symlink parents, POSIX permission requirements, etc.).
+     *
+     * @return array{path:string,status:'ok'|'warn'|'reject',score:int,reason:string}
+     */
+    private static function evaluateWriteCandidate(string $path): array
+    {
+        $path = trim($path);
+        if ($path === '') {
+            return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => 'Path is empty.'];
+        }
+        if (str_contains($path, "\0")) {
+            return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => 'Path contains null byte.'];
+        }
+
+        $warnings = [];
+        $score = self::baseSecurityScore($path);
+
+        if (self::isLikelyWindowsMountPath($path)) {
+            $warnings[] = 'Path appears to be on a Windows-mounted filesystem (WSL /mnt/<drive>); avoid for secrets.';
+            $score -= 40;
+        }
+
+        if (self::isLikelyTemporaryPath($path)) {
+            $warnings[] = 'Path appears to be in a temporary directory; avoid for persistent runtime config.';
+            $score -= 20;
+        }
+
+        if (is_file($path)) {
+            try {
+                SecureFile::assertSecureReadableFile($path, ConfigFilePolicy::strict());
+            } catch (\Throwable $e) {
+                return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => $e->getMessage()];
+            }
+
+            $score += 20; // existing secure file is a strong signal
+
+            $reason = 'Existing runtime config file is present and passes strict validation.';
+            if ($warnings !== []) {
+                $reason .= ' Warnings: ' . implode(' ', $warnings);
+                return ['path' => $path, 'status' => 'warn', 'score' => $score, 'reason' => $reason];
+            }
+
+            return ['path' => $path, 'status' => 'ok', 'score' => $score, 'reason' => $reason];
+        }
+
+        if (file_exists($path)) {
+            return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => 'Path exists but is not a file: ' . $path];
+        }
+
+        $dir = dirname($path);
+        if ($dir === '' || $dir === '.' || $dir === DIRECTORY_SEPARATOR) {
+            return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => 'Runtime config path must not be root: ' . $path];
+        }
+
+        try {
+            self::assertNoSymlinkParents($dir);
+        } catch (\Throwable $e) {
+            return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => $e->getMessage()];
+        }
+
+        $parent = self::nearestExistingDir($dir);
+        if ($parent === null) {
+            return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => 'No existing parent directory found.'];
+        }
+        if (!is_writable($parent)) {
+            return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => 'Parent directory is not writable: ' . $parent];
+        }
+
+        if (DIRECTORY_SEPARATOR !== '\\') {
+            try {
+                $dirWarn = self::assertDirIsSafeToWriteConfig($parent);
+                if ($dirWarn !== null) {
+                    $warnings[] = $dirWarn;
+                    $score -= 30;
+                }
+            } catch (\Throwable $e) {
+                return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => $e->getMessage()];
+            }
+        }
+
+        $reason = 'Parent directory is writable: ' . $parent . '.';
+        if ($warnings !== []) {
+            $reason .= ' Warnings: ' . implode(' ', $warnings);
+            return ['path' => $path, 'status' => 'warn', 'score' => $score, 'reason' => $reason];
+        }
+
+        return ['path' => $path, 'status' => 'ok', 'score' => $score, 'reason' => $reason];
+    }
+
+    /**
+     * Base score for path class (system > user > workspace).
+     */
+    private static function baseSecurityScore(string $path): int
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $p = strtolower($path);
+            if (str_starts_with($p, 'c:\\programdata\\blackcat\\')) {
+                return 100;
+            }
+            if (str_contains($p, '\\appdata\\roaming\\blackcat\\')) {
+                return 85;
+            }
+            if (str_contains($p, '\\appdata\\local\\blackcat\\')) {
+                return 80;
+            }
+            if (str_contains($p, '\\.blackcat\\')) {
+                return 60;
+            }
+            return 50;
+        }
+
+        if (str_starts_with($path, '/etc/blackcat/')) {
+            return 100;
+        }
+
+        $home = self::homeDir();
+        if ($home !== null) {
+            if (str_starts_with($path, $home . '/.config/blackcat/')) {
+                return 85;
+            }
+            if (str_starts_with($path, $home . '/.blackcat/')) {
+                return 80;
+            }
+        }
+
+        if (str_contains($path, '/.config/blackcat/')) {
+            return 75;
+        }
+        if (str_contains($path, '/.blackcat/')) {
+            return 60;
+        }
+
+        return 50;
+    }
+
+    public static function isLikelyWindowsMountPath(string $path): bool
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            return false;
+        }
+
+        return (bool) preg_match('~^/mnt/[a-zA-Z]/~', $path);
+    }
+
+    private static function isLikelyTemporaryPath(string $path): bool
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $p = strtolower($path);
+            return str_contains($p, '\\temp\\') || str_contains($p, '\\tmp\\');
+        }
+
+        return str_starts_with($path, '/tmp/')
+            || str_starts_with($path, '/var/tmp/')
+            || str_starts_with($path, '/run/')
+            || str_starts_with($path, '/dev/shm/');
+    }
+
+    /**
+     * Validate the directory used for writing runtime config.
+     *
+     * @return ?string Warning message (sticky/tmp-like dir) when the directory is usable but not ideal.
+     */
+    private static function assertDirIsSafeToWriteConfig(string $dir): ?string
+    {
+        if (is_link($dir)) {
+            throw new \RuntimeException('Config directory must not be a symlink: ' . $dir);
+        }
+
+        $perms = fileperms($dir);
+        if (!is_int($perms)) {
+            throw new \RuntimeException('Unable to read directory permissions: ' . $dir);
+        }
+
+        $mode = $perms & 0777;
+        $sticky = ($perms & 0o1000) !== 0;
+
+        $groupWritable = ($mode & 0o020) !== 0;
+        $worldWritable = ($mode & 0o002) !== 0;
+
+        if (($groupWritable || $worldWritable) && !$sticky) {
+            throw new \RuntimeException(sprintf('Config directory must not be group/world-writable (%o): %s', $mode, $dir));
+        }
+
+        if (($groupWritable || $worldWritable) && $sticky) {
+            return sprintf('Parent dir is sticky and writable by others (%o): %s', $mode, $dir);
+        }
+
+        return null;
     }
 
     private static function assertNoSymlinkParents(string $dir): void

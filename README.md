@@ -47,6 +47,9 @@ Default security rules (POSIX):
 - config file must not be world-readable / group-writable / world-writable
 - parent directories must not be group/world-writable (sticky dirs like `/tmp` are allowed)
 
+WSL note:
+- avoid storing security-critical config on Windows mounts like `/mnt/c` (DrvFS); prefer the WSL filesystem (e.g. `~/.config/blackcat` or `/etc/blackcat`).
+
 Penetration-style tests live in `tests/Security/SecureFileTest.php`.
 
 ## Trust model & integrity
