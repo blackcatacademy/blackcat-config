@@ -170,10 +170,33 @@ final class RuntimeConfigValidatorTest extends TestCase
             self::markTestSkipped('POSIX permissions required.');
         }
 
-        $outboxDir = $this->makeTmpDir(0700);
+        $base = $this->makeTmpDir(0700);
+        $outboxDir = $base . '/outbox';
+        $rootDir = $base . '/root';
+        if (!mkdir($outboxDir, 0700, true) && !is_dir($outboxDir)) {
+            self::fail('Cannot create outbox dir: ' . $outboxDir);
+        }
+        if (!mkdir($rootDir, 0700, true) && !is_dir($rootDir)) {
+            self::fail('Cannot create root dir: ' . $rootDir);
+        }
+
+        $manifestPath = $base . '/integrity.manifest.json';
+        file_put_contents($manifestPath, json_encode([
+            'schema_version' => 1,
+            'type' => 'blackcat.integrity.manifest',
+            'files' => [
+                'README.md' => '0x' . str_repeat('11', 32),
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+        @chmod($manifestPath, 0644);
+
         try {
             $repo = ConfigRepository::fromArray([
                 'trust' => [
+                    'integrity' => [
+                        'root_dir' => $rootDir,
+                        'manifest' => $manifestPath,
+                    ],
                     'web3' => [
                         'chain_id' => 4207,
                         'rpc_endpoints' => [
@@ -195,14 +218,40 @@ final class RuntimeConfigValidatorTest extends TestCase
             RuntimeConfigValidator::assertTrustKernelWeb3Config($repo);
             self::assertTrue(true);
         } finally {
+            @unlink($manifestPath);
+            @rmdir($rootDir);
             @rmdir($outboxDir);
+            @rmdir($base);
         }
     }
 
     public function testTrustKernelConfigRejectsNonTlsRpcEndpoint(): void
     {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('POSIX permissions required.');
+        }
+
+        $base = $this->makeTmpDir(0700);
+        $rootDir = $base . '/root';
+        if (!mkdir($rootDir, 0700, true) && !is_dir($rootDir)) {
+            self::fail('Cannot create root dir: ' . $rootDir);
+        }
+        $manifestPath = $base . '/integrity.manifest.json';
+        file_put_contents($manifestPath, json_encode([
+            'schema_version' => 1,
+            'type' => 'blackcat.integrity.manifest',
+            'files' => [
+                'README.md' => '0x' . str_repeat('11', 32),
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+        @chmod($manifestPath, 0644);
+
         $repo = ConfigRepository::fromArray([
             'trust' => [
+                'integrity' => [
+                    'root_dir' => $rootDir,
+                    'manifest' => $manifestPath,
+                ],
                 'web3' => [
                     'chain_id' => 4207,
                     'rpc_endpoints' => ['http://rpc.layeredge.io'],
@@ -215,13 +264,42 @@ final class RuntimeConfigValidatorTest extends TestCase
         ]);
 
         $this->expectException(\RuntimeException::class);
-        RuntimeConfigValidator::assertTrustKernelWeb3Config($repo);
+        try {
+            RuntimeConfigValidator::assertTrustKernelWeb3Config($repo);
+        } finally {
+            @unlink($manifestPath);
+            @rmdir($rootDir);
+            @rmdir($base);
+        }
     }
 
     public function testTrustKernelConfigRejectsQuorumAboveEndpointsCount(): void
     {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('POSIX permissions required.');
+        }
+
+        $base = $this->makeTmpDir(0700);
+        $rootDir = $base . '/root';
+        if (!mkdir($rootDir, 0700, true) && !is_dir($rootDir)) {
+            self::fail('Cannot create root dir: ' . $rootDir);
+        }
+        $manifestPath = $base . '/integrity.manifest.json';
+        file_put_contents($manifestPath, json_encode([
+            'schema_version' => 1,
+            'type' => 'blackcat.integrity.manifest',
+            'files' => [
+                'README.md' => '0x' . str_repeat('11', 32),
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+        @chmod($manifestPath, 0644);
+
         $repo = ConfigRepository::fromArray([
             'trust' => [
+                'integrity' => [
+                    'root_dir' => $rootDir,
+                    'manifest' => $manifestPath,
+                ],
                 'web3' => [
                     'chain_id' => 4207,
                     'rpc_endpoints' => [
@@ -237,7 +315,13 @@ final class RuntimeConfigValidatorTest extends TestCase
         ]);
 
         $this->expectException(\RuntimeException::class);
-        RuntimeConfigValidator::assertTrustKernelWeb3Config($repo);
+        try {
+            RuntimeConfigValidator::assertTrustKernelWeb3Config($repo);
+        } finally {
+            @unlink($manifestPath);
+            @rmdir($rootDir);
+            @rmdir($base);
+        }
     }
 
     private function makeTmpDir(int $mode): string

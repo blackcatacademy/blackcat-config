@@ -30,6 +30,8 @@
   - `trust.web3.mode` (`root_uri` | `full`),
   - `trust.web3.contracts.*` (registry + per-install controller addresses),
   - `trust.web3.tx_outbox_dir` for buffered transactions during RPC outages.
+  - `trust.integrity.root_dir`, `trust.integrity.manifest` (local verification inputs),
+  - `trust.enforcement` (`strict` | `warn`) to support dev vs prod behavior.
 - Auto-recommend the **best writable runtime config location** per host:
   - prefer real POSIX-permissioned filesystems (e.g. `/etc/blackcat/`, `/var/lib/blackcat/`),
   - detect “weak” mounts (e.g. `/mnt/c` on Windows) and downgrade to “dev/warn-only” unless explicitly overridden.

@@ -117,11 +117,17 @@ Runtime config keys (recommended baseline):
 ```json
 {
   "trust": {
+    "enforcement": "strict",
+    "integrity": {
+      "root_dir": "/srv/blackcat",
+      "manifest": "/etc/blackcat/integrity.manifest.json"
+    },
     "web3": {
       "chain_id": 4207,
       "rpc_endpoints": ["https://rpc.layeredge.io"],
       "rpc_quorum": 1,
       "max_stale_sec": 180,
+      "timeout_sec": 5,
       "mode": "root_uri",
       "contracts": {
         "instance_controller": "0x1111111111111111111111111111111111111111",
@@ -137,6 +143,8 @@ Defaults and rules:
 - `max_stale_sec` recommended production default is `180` (fail-closed after stale).
 - RPC endpoints must be `https://` (plain HTTP is allowed only for localhost).
 - `rpc_quorum` must be in `1..count(rpc_endpoints)`.
+- `trust.integrity.root_dir` must be an absolute, readable directory and must not be writable by group/world.
+- `trust.integrity.manifest` must be an absolute, readable file and must not be writable or a symlink.
 
 Validate Web3 trust-kernel config:
 

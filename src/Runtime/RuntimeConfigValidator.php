@@ -73,12 +73,16 @@ final class RuntimeConfigValidator
      * - trust.web3.rpc_endpoints (non-empty list of HTTPS endpoints; HTTP allowed only for localhost)
      * - trust.web3.rpc_quorum (int; 1..count(rpc_endpoints))
      * - trust.web3.contracts.instance_controller (EVM address)
+     * - trust.integrity.root_dir (absolute or relative to config; readable dir, not writable)
+     * - trust.integrity.manifest (absolute or relative to config; readable file, not writable)
      *
      * Optional:
      * - trust.web3.contracts.release_registry (EVM address)
      * - trust.web3.max_stale_sec (int; default 180)
      * - trust.web3.mode ("root_uri" | "full"; default "root_uri")
      * - trust.web3.tx_outbox_dir (secure readable dir; recommended when buffering transactions)
+     * - trust.web3.timeout_sec (int; default 5)
+     * - trust.enforcement ("strict" | "warn"; default "strict")
      */
     public static function assertTrustKernelWeb3Config(ConfigRepository $repo): void
     {
@@ -162,6 +166,12 @@ final class RuntimeConfigValidator
             self::assertEvmAddress($factory, 'trust.web3.contracts.instance_factory');
         }
 
+        $timeoutRaw = $repo->get('trust.web3.timeout_sec', 5);
+        $timeoutSec = self::parseIntLike($timeoutRaw, 'trust.web3.timeout_sec');
+        if ($timeoutSec < 1 || $timeoutSec > 60) {
+            throw new \RuntimeException('Invalid config value for trust.web3.timeout_sec (expected 1..60).');
+        }
+
         $txOutboxDir = $repo->get('trust.web3.tx_outbox_dir');
         if ($txOutboxDir !== null && $txOutboxDir !== '') {
             if (!is_string($txOutboxDir)) {
@@ -172,6 +182,23 @@ final class RuntimeConfigValidator
             if (!is_writable($resolvedOutboxDir)) {
                 throw new \RuntimeException('Config directory is not writable: trust.web3.tx_outbox_dir');
             }
+        }
+
+        $integrityRootDir = $repo->resolvePath($repo->requireString('trust.integrity.root_dir'));
+        self::assertAbsolutePath($integrityRootDir, 'trust.integrity.root_dir');
+        SecureDir::assertSecureReadableDir($integrityRootDir, ConfigDirPolicy::integrityRootDir());
+
+        $manifestPath = $repo->resolvePath($repo->requireString('trust.integrity.manifest'));
+        self::assertAbsolutePath($manifestPath, 'trust.integrity.manifest');
+        SecureFile::assertSecureReadableFile($manifestPath, ConfigFilePolicy::publicReadable());
+
+        $enforcementRaw = $repo->get('trust.enforcement', 'strict');
+        if (!is_string($enforcementRaw)) {
+            throw new \RuntimeException('Invalid config type for trust.enforcement (expected string).');
+        }
+        $enforcement = strtolower(trim($enforcementRaw));
+        if ($enforcement === '' || !in_array($enforcement, ['strict', 'warn'], true)) {
+            throw new \RuntimeException('Invalid config value for trust.enforcement (expected "strict" or "warn").');
         }
     }
 
@@ -239,5 +266,23 @@ final class RuntimeConfigValidator
         if (strtolower($address) === '0x0000000000000000000000000000000000000000') {
             throw new \RuntimeException('Invalid EVM address for ' . $key . ' (zero address).');
         }
+    }
+
+    private static function assertAbsolutePath(string $path, string $key): void
+    {
+        $path = trim($path);
+        if ($path === '' || str_contains($path, "\0")) {
+            throw new \RuntimeException('Invalid path for ' . $key . '.');
+        }
+
+        if ($path[0] === '/' || $path[0] === '\\') {
+            return;
+        }
+
+        if (preg_match('~^[a-zA-Z]:[\\\\/]~', $path)) {
+            return;
+        }
+
+        throw new \RuntimeException('Invalid path for ' . $key . ' (expected absolute path).');
     }
 }
