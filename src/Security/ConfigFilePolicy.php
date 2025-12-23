@@ -18,6 +18,7 @@ final class ConfigFilePolicy
         public readonly bool $allowWorldWritable = false,
         public readonly int $maxBytes = 1024 * 1024,
         public readonly bool $checkParentDirs = true,
+        public readonly bool $enforceOwner = true,
     ) {
         if ($this->maxBytes < 1) {
             throw new \InvalidArgumentException('maxBytes must be >= 1');
@@ -43,6 +44,7 @@ final class ConfigFilePolicy
             allowWorldWritable: false,
             maxBytes: 1024 * 1024,
             checkParentDirs: true,
+            enforceOwner: false,
         );
     }
 }

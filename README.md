@@ -42,9 +42,14 @@ Config::initFromJsonFile('/etc/blackcat/config.json');
 $dsn = Config::requireString('db.dsn'); // dot-notation
 ```
 
+Path resolution:
+- filesystem paths inside the runtime config (e.g. `crypto.keys_dir`, `crypto.manifest`) can be relative,
+  but they are resolved **relative to the config file location**, not the process working directory.
+
 Default security rules (POSIX):
 - config file must not be a symlink
 - config file must not be world-readable / group-writable / world-writable
+- config file must be owned by root or the current user (when ownership is available)
 - parent directories must not be group/world-writable (sticky dirs like `/tmp` are allowed)
 
 WSL note:

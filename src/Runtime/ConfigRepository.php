@@ -12,7 +12,10 @@ final class ConfigRepository
     /**
      * @param array<string,mixed> $data
      */
-    private function __construct(private readonly array $data)
+    private function __construct(
+        private readonly array $data,
+        private readonly ?string $sourcePath,
+    )
     {
     }
 
@@ -21,7 +24,7 @@ final class ConfigRepository
      */
     public static function fromArray(array $data): self
     {
-        return new self($data);
+        return new self($data, null);
     }
 
     public static function fromJsonFile(string $path, ?ConfigFilePolicy $policy = null): self
@@ -45,7 +48,12 @@ final class ConfigRepository
         }
 
         /** @var array<string,mixed> $decoded */
-        return new self($decoded);
+        return new self($decoded, $path);
+    }
+
+    public function sourcePath(): ?string
+    {
+        return $this->sourcePath;
     }
 
     /**
@@ -94,6 +102,50 @@ final class ConfigRepository
         }
 
         throw new \RuntimeException('Missing required config integer: ' . $key);
+    }
+
+    /**
+     * Resolve a potentially relative filesystem path value against the config source directory.
+     *
+     * Relative paths are resolved relative to the config JSON file location, not the process CWD.
+     */
+    public function resolvePath(string $path): string
+    {
+        $path = trim($path);
+        if ($path === '') {
+            throw new \RuntimeException('Config path is empty.');
+        }
+        if (str_contains($path, "\0")) {
+            throw new \RuntimeException('Config path contains null byte.');
+        }
+
+        if (self::isAbsolutePath($path)) {
+            return $path;
+        }
+
+        if ($this->sourcePath === null) {
+            throw new \RuntimeException('Relative paths require a config sourcePath (load via fromJsonFile).');
+        }
+
+        $baseDir = dirname($this->sourcePath);
+        if ($baseDir === '' || $baseDir === '.') {
+            throw new \RuntimeException('Unable to resolve relative path (invalid config sourcePath): ' . $this->sourcePath);
+        }
+
+        return rtrim($baseDir, "/\\") . DIRECTORY_SEPARATOR . $path;
+    }
+
+    private static function isAbsolutePath(string $path): bool
+    {
+        if ($path === '') {
+            return false;
+        }
+
+        if ($path[0] === '/' || $path[0] === '\\') {
+            return true;
+        }
+
+        return (bool) preg_match('~^[a-zA-Z]:[\\\\/]~', $path);
     }
 
     /**

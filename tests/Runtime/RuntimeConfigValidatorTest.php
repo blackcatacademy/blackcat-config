@@ -45,6 +45,48 @@ final class RuntimeConfigValidatorTest extends TestCase
         }
     }
 
+    public function testCryptoConfigResolvesPathsRelativeToConfigFile(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('POSIX permissions required.');
+        }
+
+        $base = $this->makeTmpDir(0700);
+        $keysDir = $base . '/keys';
+        if (!mkdir($keysDir, 0700, true) && !is_dir($keysDir)) {
+            self::fail('Cannot create keys dir: ' . $keysDir);
+        }
+        @chmod($keysDir, 0700);
+
+        $manifestAbs = $keysDir . '/manifest.json';
+        file_put_contents($manifestAbs, "{\n  \"slots\": {}\n}\n");
+        @chmod($manifestAbs, 0644);
+
+        $configPath = $base . '/config.runtime.json';
+        $configJson = json_encode([
+            'crypto' => [
+                'keys_dir' => 'keys',
+                'manifest' => 'keys/manifest.json',
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if (!is_string($configJson)) {
+            self::fail('Unable to encode JSON.');
+        }
+        file_put_contents($configPath, $configJson . "\n");
+        @chmod($configPath, 0600);
+
+        try {
+            $repo = ConfigRepository::fromJsonFile($configPath);
+            RuntimeConfigValidator::assertCryptoConfig($repo);
+            self::assertTrue(true);
+        } finally {
+            @unlink($configPath);
+            @unlink($manifestAbs);
+            @rmdir($keysDir);
+            @rmdir($base);
+        }
+    }
+
     public function testObservabilityConfigRequiresStorageDir(): void
     {
         $repo = ConfigRepository::fromArray(['observability' => []]);

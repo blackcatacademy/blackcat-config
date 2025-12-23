@@ -59,6 +59,10 @@ final class SecureFile
         }
         $mode = $perms & 0777;
 
+        if ($policy->enforceOwner) {
+            self::assertOwnedByRootOrCurrentUser($path, 'Config file');
+        }
+
         if (!$policy->allowWorldWritable && (($mode & 0o002) !== 0)) {
             throw new SecurityException(sprintf('Config file must not be world-writable (%o): %s', $mode, $path));
         }
@@ -80,6 +84,33 @@ final class SecureFile
         }
 
         self::assertDirNotWritable($dir);
+    }
+
+    private static function assertOwnedByRootOrCurrentUser(string $path, string $label): void
+    {
+        if (!function_exists('posix_geteuid')) {
+            return;
+        }
+
+        $owner = fileowner($path);
+        if (!is_int($owner)) {
+            throw new SecurityException('Unable to read owner for: ' . $path);
+        }
+
+        $euid = posix_geteuid();
+        if (!is_int($euid)) {
+            return;
+        }
+
+        if ($owner !== 0 && $owner !== $euid) {
+            throw new SecurityException(sprintf(
+                '%s must be owned by root or uid %d (got uid %d): %s',
+                $label,
+                $euid,
+                $owner,
+                $path
+            ));
+        }
     }
 
     private static function assertParentDirsNotWritable(string $startDir): void

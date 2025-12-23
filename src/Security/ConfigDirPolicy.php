@@ -16,6 +16,7 @@ final class ConfigDirPolicy
         public readonly bool $allowWorldReadable = false,
         public readonly bool $allowWorldExecutable = false,
         public readonly bool $checkParentDirs = true,
+        public readonly bool $enforceOwner = true,
     ) {
     }
 
@@ -39,7 +40,7 @@ final class ConfigDirPolicy
             allowWorldReadable: false,
             allowWorldExecutable: false,
             checkParentDirs: true,
+            enforceOwner: true,
         );
     }
 }
-

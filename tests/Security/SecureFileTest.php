@@ -137,6 +137,38 @@ final class SecureFileTest extends TestCase
         }
     }
 
+    public function testRejectsUnexpectedOwnerWhenRunningAsRoot(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('POSIX permissions required.');
+        }
+        if (!function_exists('posix_geteuid') || posix_geteuid() !== 0) {
+            self::markTestSkipped('Root required to change file ownership.');
+        }
+        if (!function_exists('chown')) {
+            self::markTestSkipped('chown() is not available.');
+        }
+
+        $dir = $this->makeTmpDir(0700);
+        $path = $dir . '/config.json';
+        file_put_contents($path, "{}\n");
+        chmod($path, 0600);
+
+        if (!@chown($path, 12345)) {
+            @unlink($path);
+            @rmdir($dir);
+            self::markTestSkipped('Unable to chown file (permissions).');
+        }
+
+        try {
+            $this->expectException(SecurityException::class);
+            SecureFile::assertSecureReadableFile($path, ConfigFilePolicy::strict());
+        } finally {
+            @unlink($path);
+            @rmdir($dir);
+        }
+    }
+
     private function makeTmpDir(int $mode): string
     {
         $tmpBase = rtrim(sys_get_temp_dir(), '/\\');
@@ -148,4 +180,3 @@ final class SecureFileTest extends TestCase
         return $dir;
     }
 }
-

@@ -22,7 +22,7 @@ final class RuntimeConfigValidator
      */
     public static function assertCryptoConfig(ConfigRepository $repo): void
     {
-        $keysDir = $repo->requireString('crypto.keys_dir');
+        $keysDir = $repo->resolvePath($repo->requireString('crypto.keys_dir'));
         SecureDir::assertSecureReadableDir($keysDir, ConfigDirPolicy::secretsDir());
 
         $manifest = $repo->get('crypto.manifest');
@@ -33,7 +33,7 @@ final class RuntimeConfigValidator
             throw new \RuntimeException('Invalid config type for crypto.manifest (expected string).');
         }
 
-        SecureFile::assertSecureReadableFile($manifest, ConfigFilePolicy::publicReadable());
+        SecureFile::assertSecureReadableFile($repo->resolvePath($manifest), ConfigFilePolicy::publicReadable());
     }
 
     /**
@@ -47,7 +47,7 @@ final class RuntimeConfigValidator
      */
     public static function assertObservabilityConfig(ConfigRepository $repo): void
     {
-        $storageDir = $repo->requireString('observability.storage_dir');
+        $storageDir = $repo->resolvePath($repo->requireString('observability.storage_dir'));
         SecureDir::assertSecureReadableDir($storageDir, ConfigDirPolicy::secretsDir());
 
         $service = $repo->get('observability.service');
@@ -167,8 +167,9 @@ final class RuntimeConfigValidator
             if (!is_string($txOutboxDir)) {
                 throw new \RuntimeException('Invalid config type for trust.web3.tx_outbox_dir (expected string).');
             }
-            SecureDir::assertSecureReadableDir($txOutboxDir, ConfigDirPolicy::secretsDir());
-            if (!is_writable($txOutboxDir)) {
+            $resolvedOutboxDir = $repo->resolvePath($txOutboxDir);
+            SecureDir::assertSecureReadableDir($resolvedOutboxDir, ConfigDirPolicy::secretsDir());
+            if (!is_writable($resolvedOutboxDir)) {
                 throw new \RuntimeException('Config directory is not writable: trust.web3.tx_outbox_dir');
             }
         }
