@@ -82,7 +82,7 @@ final class RuntimeConfigValidator
      * - trust.web3.mode ("root_uri" | "full"; default "root_uri")
      * - trust.web3.tx_outbox_dir (secure readable dir; recommended when buffering transactions)
      * - trust.web3.timeout_sec (int; default 5)
-     * - trust.enforcement ("strict" | "warn"; default "strict")
+     * - trust.enforcement ("strict" | "warn"; default "strict") (deprecated; enforcement is bound to on-chain policy hash)
      */
     public static function assertTrustKernelWeb3Config(ConfigRepository $repo): void
     {

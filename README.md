@@ -117,7 +117,6 @@ Runtime config keys (recommended baseline):
 ```json
 {
   "trust": {
-    "enforcement": "strict",
     "integrity": {
       "root_dir": "/srv/blackcat",
       "manifest": "/etc/blackcat/integrity.manifest.json"
@@ -138,6 +137,11 @@ Runtime config keys (recommended baseline):
   }
 }
 ```
+
+Enforcement note:
+- Production vs dev behavior must **not** be switchable by editing runtime config.
+- In the BlackCat design, enforcement is bound to the **on-chain policy hash** committed in `InstanceController.activePolicyHash`.
+  The runtime config may still contain `trust.enforcement` for backwards compatibility, but the trust-kernel runtime in `blackcat-core` does not use it.
 
 Defaults and rules:
 - `max_stale_sec` recommended production default is `180` (fail-closed after stale).
