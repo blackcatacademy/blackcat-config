@@ -159,3 +159,6 @@ use BlackCat\Config\Runtime\RuntimeConfigValidator;
 Config::initFromFirstAvailableJsonFile();
 RuntimeConfigValidator::assertTrustKernelWeb3Config(Config::repo());
 ```
+
+Edgen Chain template:
+- `blackcat-config/docs/TRUST_KERNEL_EDGEN.md`
