@@ -15,6 +15,9 @@ final class SourceCodePolicyScanner
 {
     public const RULE_RAW_PDO = 'raw_pdo';
     public const RULE_RAW_PDO_ACCESS = 'raw_pdo_access';
+    public const RULE_RAW_MYSQLI = 'raw_mysqli';
+    public const RULE_RAW_SQLITE3 = 'raw_sqlite3';
+    public const RULE_RAW_PG_CONNECT = 'raw_pg_connect';
     public const RULE_KEY_FILE_READ = 'key_file_read';
 
     /**
@@ -165,6 +168,22 @@ final class SourceCodePolicyScanner
                         'message' => 'Raw PDO instantiation is forbidden; use BlackCat\\Core\\Database.',
                     ];
                 }
+                if ($name !== null && strtolower(ltrim($name, '\\')) === 'mysqli') {
+                    $out[] = [
+                        'rule' => self::RULE_RAW_MYSQLI,
+                        'file' => $file,
+                        'line' => $line,
+                        'message' => 'Raw mysqli instantiation is forbidden; use BlackCat\\Core\\Database.',
+                    ];
+                }
+                if ($name !== null && strtolower(ltrim($name, '\\')) === 'sqlite3') {
+                    $out[] = [
+                        'rule' => self::RULE_RAW_SQLITE3,
+                        'file' => $file,
+                        'line' => $line,
+                        'message' => 'Raw SQLite3 instantiation is forbidden; use BlackCat\\Core\\Database.',
+                    ];
+                }
                 continue;
             }
 
@@ -185,6 +204,30 @@ final class SourceCodePolicyScanner
                     ];
                 }
                 continue;
+            }
+
+            if ($type === T_STRING && self::isStandaloneFunctionCall($tokens, $i)) {
+                $fn = strtolower($text);
+
+                if ($fn === 'mysqli_connect') {
+                    $out[] = [
+                        'rule' => self::RULE_RAW_MYSQLI,
+                        'file' => $file,
+                        'line' => $line,
+                        'message' => 'Direct mysqli_connect() is forbidden; use BlackCat\\Core\\Database.',
+                    ];
+                    continue;
+                }
+
+                if ($fn === 'pg_connect' || $fn === 'pg_pconnect') {
+                    $out[] = [
+                        'rule' => self::RULE_RAW_PG_CONNECT,
+                        'file' => $file,
+                        'line' => $line,
+                        'message' => 'Direct pg_connect()/pg_pconnect() is forbidden; use BlackCat\\Core\\Database.',
+                    ];
+                    continue;
+                }
             }
 
             if ($type === T_STRING && in_array(strtolower($text), $keyReadFunctions, true)) {
@@ -234,6 +277,30 @@ final class SourceCodePolicyScanner
             return $t;
         }
         return null;
+    }
+
+    /**
+     * Returns true if the token at index $i is a standalone function call (not a method/static call).
+     *
+     * @param array<int,mixed> $tokens
+     */
+    private static function isStandaloneFunctionCall(array $tokens, int $i): bool
+    {
+        $prev = self::prevNonTriviaToken($tokens, $i - 1);
+        $next = self::nextNonTriviaToken($tokens, $i + 1);
+
+        if ($next !== '(') {
+            return false;
+        }
+
+        if (
+            is_array($prev)
+            && in_array($prev[0], [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_DOUBLE_COLON], true)
+        ) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
