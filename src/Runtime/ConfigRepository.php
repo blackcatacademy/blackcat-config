@@ -48,7 +48,19 @@ final class ConfigRepository
         }
 
         /** @var array<string,mixed> $decoded */
-        return new self($decoded, $path);
+        $repo = new self($decoded, $path);
+
+        // Security-first: validate security-critical sections eagerly (when present).
+        RuntimeConfigValidator::assertTrustKernelWeb3Config($repo);
+
+        if ($repo->get('crypto') !== null) {
+            RuntimeConfigValidator::assertCryptoConfig($repo);
+        }
+        if ($repo->get('observability') !== null) {
+            RuntimeConfigValidator::assertObservabilityConfig($repo);
+        }
+
+        return $repo;
     }
 
     public function sourcePath(): ?string
