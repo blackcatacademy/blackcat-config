@@ -14,7 +14,9 @@ use BlackCat\Config\Config\ProfileConfig;
 use BlackCat\Config\Env\EnvRenderer;
 use BlackCat\Config\Integration\IntegrationChecker;
 use BlackCat\Config\Profile\ConfigProfile;
+use BlackCat\Config\Runtime\ConfigRepository;
 use BlackCat\Config\Security\SecurityChecklist;
+use BlackCat\Config\Security\KernelAttestations;
 use BlackCat\Config\Security\SourceCodePolicyScanner;
 use BlackCat\Config\Telemetry\TelemetryEmitter;
 use BlackCat\Config\Runtime\RuntimeConfigInstaller;
@@ -82,6 +84,47 @@ if (str_starts_with($command, 'runtime:')) {
                 ],
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
             exit(0);
+
+        case 'runtime:attestation:runtime-config':
+            $target = null;
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg)) {
+                    continue;
+                }
+                if (str_starts_with($arg, '--path=')) {
+                    $target = substr($arg, 7);
+                }
+            }
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+                    continue;
+                }
+                $target ??= $arg;
+            }
+
+            try {
+                if ($target !== null) {
+                    $repo = ConfigRepository::fromJsonFile($target);
+                } else {
+                    $repo = ConfigBootstrap::loadFirstAvailableJsonFile();
+                }
+
+                $data = $repo->toArray();
+                $key = KernelAttestations::runtimeConfigAttestationKeyV1();
+                $value = KernelAttestations::runtimeConfigAttestationValueV1($data);
+
+                echo json_encode([
+                    'attestation' => [
+                        'key' => $key,
+                        'value' => $value,
+                    ],
+                    'source_path' => $repo->sourcePath(),
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+                exit(0);
+            } catch (\Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
 
         case 'runtime:init':
             $force = in_array('--force', $commandArgs, true);
