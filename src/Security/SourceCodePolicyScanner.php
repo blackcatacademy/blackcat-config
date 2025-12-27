@@ -14,6 +14,7 @@ namespace BlackCat\Config\Security;
 final class SourceCodePolicyScanner
 {
     public const RULE_RAW_PDO = 'raw_pdo';
+    public const RULE_RAW_PDO_ACCESS = 'raw_pdo_access';
     public const RULE_KEY_FILE_READ = 'key_file_read';
 
     /**
@@ -167,6 +168,25 @@ final class SourceCodePolicyScanner
                 continue;
             }
 
+            if ($type === T_STRING && strtolower($text) === 'getpdo') {
+                $prev = self::prevNonTriviaToken($tokens, $i - 1);
+                $next = self::nextNonTriviaToken($tokens, $i + 1);
+
+                if (
+                    is_array($prev)
+                    && in_array($prev[0], [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR], true)
+                    && $next === '('
+                ) {
+                    $out[] = [
+                        'rule' => self::RULE_RAW_PDO_ACCESS,
+                        'file' => $file,
+                        'line' => $line,
+                        'message' => 'Raw PDO access via getPdo() is forbidden; use BlackCat\\Core\\Database wrapper methods.',
+                    ];
+                }
+                continue;
+            }
+
             if ($type === T_STRING && in_array(strtolower($text), $keyReadFunctions, true)) {
                 $hasKeyLiteral = self::functionCallHasKeyLiteral($tokens, $i + 1);
                 if ($hasKeyLiteral) {
@@ -181,6 +201,39 @@ final class SourceCodePolicyScanner
         }
 
         return $out;
+    }
+
+    /**
+     * @param array<int,mixed> $tokens
+     * @return mixed
+     */
+    private static function prevNonTriviaToken(array $tokens, int $start): mixed
+    {
+        for ($i = $start; $i >= 0; $i--) {
+            $t = $tokens[$i];
+            if (is_array($t) && in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+            return $t;
+        }
+        return null;
+    }
+
+    /**
+     * @param array<int,mixed> $tokens
+     * @return mixed
+     */
+    private static function nextNonTriviaToken(array $tokens, int $start): mixed
+    {
+        $count = count($tokens);
+        for ($i = $start; $i < $count; $i++) {
+            $t = $tokens[$i];
+            if (is_array($t) && in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+            return $t;
+        }
+        return null;
     }
 
     /**
