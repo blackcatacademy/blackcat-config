@@ -22,6 +22,7 @@ final class AttackSurfaceScanner
     public const RULE_DYNAMIC_INCLUDE = 'dynamic_include';
     public const RULE_UNSERIALIZE = 'unserialize';
     public const RULE_SHELL_EXEC = 'shell_exec';
+    public const RULE_ASSERT = 'assert';
 
     /**
      * @param array{
@@ -202,6 +203,17 @@ final class AttackSurfaceScanner
                     continue;
                 }
 
+                if ($fn === 'assert') {
+                    $out[] = [
+                        'severity' => 'warn',
+                        'rule' => self::RULE_ASSERT,
+                        'file' => $file,
+                        'line' => $line,
+                        'message' => 'assert() can be a code execution primitive in some configurations; avoid using it for runtime checks.',
+                    ];
+                    continue;
+                }
+
                 if (in_array($fn, ['exec', 'shell_exec', 'system', 'passthru', 'popen', 'proc_open'], true)) {
                     $out[] = [
                         'severity' => 'warn',
@@ -329,4 +341,3 @@ final class AttackSurfaceScanner
         return null;
     }
 }
-
