@@ -41,11 +41,46 @@ if (str_starts_with($command, 'runtime:')) {
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
             exit(0);
 
+        case 'runtime:scan':
+            echo json_encode(
+                array_diff_key(
+                    ConfigBootstrap::scanFirstAvailableJsonFile(),
+                    ['repo' => true],
+                ),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+            ) . PHP_EOL;
+            exit(0);
+
         case 'runtime:recommend':
             echo json_encode(
                 RuntimeConfigInstaller::recommendWritePath(),
                 JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
             ) . PHP_EOL;
+            exit(0);
+
+        case 'runtime:template:trust-edgen':
+            echo json_encode([
+                'trust' => [
+                    'integrity' => [
+                        'root_dir' => '/srv/blackcat',
+                        'manifest' => '/etc/blackcat/integrity.manifest.json',
+                    ],
+                    'web3' => [
+                        'chain_id' => 4207,
+                        'rpc_endpoints' => [
+                            'https://rpc.layeredge.io',
+                        ],
+                        'rpc_quorum' => 1,
+                        'max_stale_sec' => 180,
+                        'timeout_sec' => 5,
+                        'mode' => 'root_uri',
+                        'contracts' => [
+                            'instance_controller' => '0xYOUR_INSTALL_INSTANCE_CONTROLLER_CLONE',
+                            'release_registry' => '0x22681Ee2153B7B25bA6772B44c160BB60f4C333E',
+                        ],
+                    ],
+                ],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
             exit(0);
 
         case 'runtime:init':
@@ -294,7 +329,9 @@ Usage:
   config security:scan [path]
   config [profiles.php] check
   config runtime:paths
+  config runtime:scan
   config runtime:recommend
+  config runtime:template:trust-edgen
   config runtime:init [--force] [--path=FILE]
 
 TXT;

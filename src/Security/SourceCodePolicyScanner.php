@@ -136,6 +136,13 @@ final class SourceCodePolicyScanner
         $out = [];
         $tokens = token_get_all($code);
 
+        $keyReadFunctions = [
+            'file_get_contents',
+            'fopen',
+            'readfile',
+            'file',
+        ];
+
         $count = count($tokens);
         for ($i = 0; $i < $count; $i++) {
             $tok = $tokens[$i];
@@ -160,8 +167,8 @@ final class SourceCodePolicyScanner
                 continue;
             }
 
-            if ($type === T_STRING && strtolower($text) === 'file_get_contents') {
-                $hasKeyLiteral = self::fileGetContentsHasKeyLiteral($tokens, $i + 1);
+            if ($type === T_STRING && in_array(strtolower($text), $keyReadFunctions, true)) {
+                $hasKeyLiteral = self::functionCallHasKeyLiteral($tokens, $i + 1);
                 if ($hasKeyLiteral) {
                     $out[] = [
                         'rule' => self::RULE_KEY_FILE_READ,
@@ -221,7 +228,7 @@ final class SourceCodePolicyScanner
      *
      * @param array<int,mixed> $tokens
      */
-    private static function fileGetContentsHasKeyLiteral(array $tokens, int $start): bool
+    private static function functionCallHasKeyLiteral(array $tokens, int $start): bool
     {
         $count = count($tokens);
 

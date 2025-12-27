@@ -22,10 +22,12 @@ final class SourceCodePolicyScannerTest extends TestCase
 
         $bad1 = $src . DIRECTORY_SEPARATOR . 'bad_pdo.php';
         $bad2 = $src . DIRECTORY_SEPARATOR . 'bad_key.php';
+        $bad3 = $src . DIRECTORY_SEPARATOR . 'bad_fopen.php';
         $vendorBad = $vendor . DIRECTORY_SEPARATOR . 'vendor_bad.php';
 
         file_put_contents($bad1, "<?php\n\$pdo = new PDO('sqlite::memory:');\n");
         file_put_contents($bad2, "<?php\nfile_get_contents('/tmp/app_salt_v1.key');\n");
+        file_put_contents($bad3, "<?php\nfopen('/tmp/app_salt_v1.key', 'rb');\n");
         file_put_contents($vendorBad, "<?php\n\$pdo = new PDO('sqlite::memory:');\n");
 
         try {
@@ -69,4 +71,3 @@ final class SourceCodePolicyScannerTest extends TestCase
         @rmdir($path);
     }
 }
-
