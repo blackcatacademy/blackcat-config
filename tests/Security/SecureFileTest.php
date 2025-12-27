@@ -7,6 +7,7 @@ namespace BlackCat\Config\Tests\Security;
 use BlackCat\Config\Security\ConfigFilePolicy;
 use BlackCat\Config\Security\SecurityException;
 use BlackCat\Config\Security\SecureFile;
+use BlackCat\Config\Security\SecureFsTestOverrides;
 use PHPUnit\Framework\TestCase;
 
 final class SecureFileTest extends TestCase
@@ -142,28 +143,21 @@ final class SecureFileTest extends TestCase
         if (DIRECTORY_SEPARATOR === '\\') {
             self::markTestSkipped('POSIX permissions required.');
         }
-        if (!function_exists('posix_geteuid') || posix_geteuid() !== 0) {
-            self::markTestSkipped('Root required to change file ownership.');
-        }
-        if (!function_exists('chown')) {
-            self::markTestSkipped('chown() is not available.');
-        }
 
         $dir = $this->makeTmpDir(0700);
         $path = $dir . '/config.json';
         file_put_contents($path, "{}\n");
         chmod($path, 0600);
 
-        if (!@chown($path, 12345)) {
-            @unlink($path);
-            @rmdir($dir);
-            self::markTestSkipped('Unable to chown file (permissions).');
-        }
-
         try {
+            SecureFsTestOverrides::enable();
+            SecureFsTestOverrides::forceEuid(0);
+            SecureFsTestOverrides::forceOwner($path, 12345);
+
             $this->expectException(SecurityException::class);
             SecureFile::assertSecureReadableFile($path, ConfigFilePolicy::strict());
         } finally {
+            SecureFsTestOverrides::disable();
             @unlink($path);
             @rmdir($dir);
         }

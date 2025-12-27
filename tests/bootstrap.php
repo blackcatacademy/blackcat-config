@@ -9,9 +9,9 @@ $autoloadCandidates = [
 foreach ($autoloadCandidates as $candidate) {
     if (is_file($candidate)) {
         require $candidate;
+        require __DIR__ . '/Support/SecurityNamespaceOverrides.php';
         return;
     }
 }
 
 throw new RuntimeException('Cannot find an autoloader; run composer install.');
-

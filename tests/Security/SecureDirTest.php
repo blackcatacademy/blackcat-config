@@ -7,6 +7,7 @@ namespace BlackCat\Config\Tests\Security;
 use BlackCat\Config\Security\ConfigDirPolicy;
 use BlackCat\Config\Security\SecurityException;
 use BlackCat\Config\Security\SecureDir;
+use BlackCat\Config\Security\SecureFsTestOverrides;
 use PHPUnit\Framework\TestCase;
 
 final class SecureDirTest extends TestCase
@@ -61,24 +62,18 @@ final class SecureDirTest extends TestCase
         if (DIRECTORY_SEPARATOR === '\\') {
             self::markTestSkipped('POSIX permissions required.');
         }
-        if (!function_exists('posix_geteuid') || posix_geteuid() !== 0) {
-            self::markTestSkipped('Root required to change directory ownership.');
-        }
-        if (!function_exists('chown')) {
-            self::markTestSkipped('chown() is not available.');
-        }
 
         $dir = $this->makeTmpDir(0700);
 
-        if (!@chown($dir, 12345)) {
-            @rmdir($dir);
-            self::markTestSkipped('Unable to chown directory (permissions).');
-        }
-
         try {
+            SecureFsTestOverrides::enable();
+            SecureFsTestOverrides::forceEuid(0);
+            SecureFsTestOverrides::forceOwner($dir, 12345);
+
             $this->expectException(SecurityException::class);
             SecureDir::assertSecureReadableDir($dir, ConfigDirPolicy::secretsDir());
         } finally {
+            SecureFsTestOverrides::disable();
             @rmdir($dir);
         }
     }
