@@ -162,3 +162,11 @@ RuntimeConfigValidator::assertTrustKernelWeb3Config(Config::repo());
 
 Edgen Chain template:
 - `blackcat-config/docs/TRUST_KERNEL_EDGEN.md`
+
+## Stage 6: Source code policy scan (anti-bypass)
+
+To keep the kernel security model intact, you can scan your repo for known bypass patterns:
+
+```bash
+php bin/config security:scan .
+```

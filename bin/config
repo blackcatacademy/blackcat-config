@@ -15,6 +15,7 @@ use BlackCat\Config\Env\EnvRenderer;
 use BlackCat\Config\Integration\IntegrationChecker;
 use BlackCat\Config\Profile\ConfigProfile;
 use BlackCat\Config\Security\SecurityChecklist;
+use BlackCat\Config\Security\SourceCodePolicyScanner;
 use BlackCat\Config\Telemetry\TelemetryEmitter;
 use BlackCat\Config\Runtime\RuntimeConfigInstaller;
 use BlackCat\Config\Runtime\ConfigBootstrap;
@@ -81,6 +82,36 @@ if (str_starts_with($command, 'runtime:')) {
             printHelp();
             fwrite(STDERR, "Unknown command {$command}\n");
             exit(1);
+    }
+}
+
+// Security code scan does not depend on profiles.php.
+if ($command === 'security:scan') {
+    $root = (string) (getcwd() ?: '.');
+    foreach ($commandArgs as $arg) {
+        if (!is_string($arg)) {
+            continue;
+        }
+        if (str_starts_with($arg, '--path=')) {
+            $root = substr($arg, 7);
+            continue;
+        }
+    }
+    foreach ($commandArgs as $arg) {
+        if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+            continue;
+        }
+        $root = $arg;
+        break;
+    }
+
+    try {
+        $res = SourceCodePolicyScanner::scan($root);
+        echo json_encode($res, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        exit($res['violations'] === [] ? 0 : 2);
+    } catch (\Throwable $exception) {
+        fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+        exit(1);
     }
 }
 
@@ -260,6 +291,7 @@ Usage:
   config [profiles.php] integration:check <profile>
   config [profiles.php] telemetry:tail <profile> [lines]
   config [profiles.php] security:check <profile>
+  config security:scan [path]
   config [profiles.php] check
   config runtime:paths
   config runtime:recommend
