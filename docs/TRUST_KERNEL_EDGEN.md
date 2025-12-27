@@ -38,6 +38,20 @@ Notes:
 - For production, prefer multiple RPC endpoints and `rpc_quorum >= 2` when available.
 - `max_stale_sec=180` is the recommended strict default (after stale, runtime must fail closed).
 
+## Policy v3: runtime config attestation (recommended)
+
+If you use `TrustPolicyV3` in `InstanceController.activePolicyHash`, the kernel will also verify that the runtime config file is bound to the chain.
+
+Compute the attestation key/value:
+
+```bash
+php vendor/bin/config runtime:attestation:runtime-config
+# or
+php vendor/bin/config runtime:attestation:runtime-config --path=/etc/blackcat/config.json
+```
+
+Then set `attestations[key]=value` on your per-install `InstanceController` and lock the key (recommended).
+
 ## Validate config (pre-boot)
 
 ```php
@@ -47,4 +61,3 @@ use BlackCat\Config\Runtime\RuntimeConfigValidator;
 Config::initFromFirstAvailableJsonFile();
 RuntimeConfigValidator::assertTrustKernelWeb3Config(Config::repo());
 ```
-
