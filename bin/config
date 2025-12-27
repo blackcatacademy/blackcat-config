@@ -18,6 +18,7 @@ use BlackCat\Config\Runtime\ConfigRepository;
 use BlackCat\Config\Security\SecurityChecklist;
 use BlackCat\Config\Security\KernelAttestations;
 use BlackCat\Config\Security\SourceCodePolicyScanner;
+use BlackCat\Config\Security\AttackSurfaceScanner;
 use BlackCat\Config\Telemetry\TelemetryEmitter;
 use BlackCat\Config\Runtime\RuntimeConfigInstaller;
 use BlackCat\Config\Runtime\ConfigBootstrap;
@@ -61,28 +62,17 @@ if (str_starts_with($command, 'runtime:')) {
             exit(0);
 
         case 'runtime:template:trust-edgen':
-            echo json_encode([
-                'trust' => [
-                    'integrity' => [
-                        'root_dir' => '/srv/blackcat',
-                        'manifest' => '/etc/blackcat/integrity.manifest.json',
-                    ],
-                    'web3' => [
-                        'chain_id' => 4207,
-                        'rpc_endpoints' => [
-                            'https://rpc.layeredge.io',
-                        ],
-                        'rpc_quorum' => 1,
-                        'max_stale_sec' => 180,
-                        'timeout_sec' => 5,
-                        'mode' => 'root_uri',
-                        'contracts' => [
-                            'instance_controller' => '0xYOUR_INSTALL_INSTANCE_CONTROLLER_CLONE',
-                            'release_registry' => '0x22681Ee2153B7B25bA6772B44c160BB60f4C333E',
-                        ],
-                    ],
-                ],
-            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+            echo json_encode(
+                trustKernelEdgenTemplate('full'),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+            ) . PHP_EOL;
+            exit(0);
+
+        case 'runtime:template:trust-edgen-compat':
+            echo json_encode(
+                trustKernelEdgenTemplate('root_uri'),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+            ) . PHP_EOL;
             exit(0);
 
         case 'runtime:attestation:runtime-config':
@@ -128,6 +118,7 @@ if (str_starts_with($command, 'runtime:')) {
 
         case 'runtime:init':
             $force = in_array('--force', $commandArgs, true);
+            $template = null;
             $target = null;
             foreach ($commandArgs as $arg) {
                 if (!is_string($arg)) {
@@ -139,6 +130,9 @@ if (str_starts_with($command, 'runtime:')) {
                 if (str_starts_with($arg, '--out=')) {
                     $target = substr($arg, 6);
                 }
+                if (str_starts_with($arg, '--template=')) {
+                    $template = substr($arg, 11);
+                }
             }
             foreach ($commandArgs as $arg) {
                 if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
@@ -148,7 +142,22 @@ if (str_starts_with($command, 'runtime:')) {
             }
 
             try {
-                $res = RuntimeConfigInstaller::init([], $target, $force);
+                $payload = [];
+                if (is_string($template)) {
+                    $t = strtolower(trim($template));
+                    if (str_starts_with($t, 'runtime:template:')) {
+                        $t = substr($t, 17);
+                    }
+
+                    $payload = match ($t) {
+                        'trust-edgen' => trustKernelEdgenTemplate('full'),
+                        'trust-edgen-compat' => trustKernelEdgenTemplate('root_uri'),
+                        '' => [],
+                        default => throw new \RuntimeException('Unknown runtime template: ' . $template),
+                    };
+                }
+
+                $res = RuntimeConfigInstaller::init($payload, $target, $force);
                 echo json_encode($res, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
                 exit(0);
             } catch (\Throwable $exception) {
@@ -187,6 +196,44 @@ if ($command === 'security:scan') {
         $res = SourceCodePolicyScanner::scan($root);
         echo json_encode($res, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
         exit($res['violations'] === [] ? 0 : 2);
+    } catch (\Throwable $exception) {
+        fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+}
+
+if ($command === 'security:attack-surface') {
+    $root = (string) (getcwd() ?: '.');
+    foreach ($commandArgs as $arg) {
+        if (!is_string($arg)) {
+            continue;
+        }
+        if (str_starts_with($arg, '--path=')) {
+            $root = substr($arg, 7);
+            continue;
+        }
+    }
+    foreach ($commandArgs as $arg) {
+        if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+            continue;
+        }
+        $root = $arg;
+        break;
+    }
+
+    try {
+        $res = AttackSurfaceScanner::scan($root);
+        echo json_encode($res, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+
+        $hasErrors = false;
+        foreach ($res['findings'] as $finding) {
+            if (($finding['severity'] ?? null) === 'error') {
+                $hasErrors = true;
+                break;
+            }
+        }
+
+        exit($hasErrors ? 2 : 0);
     } catch (\Throwable $exception) {
         fwrite(STDERR, $exception->getMessage() . PHP_EOL);
         exit(1);
@@ -370,12 +417,58 @@ Usage:
   config [profiles.php] telemetry:tail <profile> [lines]
   config [profiles.php] security:check <profile>
   config security:scan [path]
+  config security:attack-surface [path]
   config [profiles.php] check
   config runtime:paths
   config runtime:scan
   config runtime:recommend
   config runtime:template:trust-edgen
-  config runtime:init [--force] [--path=FILE]
+  config runtime:template:trust-edgen-compat
+  config runtime:attestation:runtime-config [--path=FILE]
+  config runtime:init [--force] [--out=FILE] [--template=trust-edgen|trust-edgen-compat]
 
 TXT;
+}
+
+/**
+ * @param 'root_uri'|'full' $mode
+ * @return array{
+ *   trust:array{
+ *     integrity:array{root_dir:string,manifest:string},
+ *     web3:array{
+ *       chain_id:int,
+ *       rpc_endpoints:list<string>,
+ *       rpc_quorum:int,
+ *       max_stale_sec:int,
+ *       timeout_sec:int,
+ *       mode:'root_uri'|'full',
+ *       contracts:array{instance_controller:string,release_registry:string}
+ *     }
+ *   }
+ * }
+ */
+function trustKernelEdgenTemplate(string $mode): array
+{
+    return [
+        'trust' => [
+            'integrity' => [
+                'root_dir' => '/srv/blackcat',
+                'manifest' => '/etc/blackcat/integrity.manifest.json',
+            ],
+            'web3' => [
+                'chain_id' => 4207,
+                'rpc_endpoints' => [
+                    'https://rpc.layeredge.io',
+                ],
+                'rpc_quorum' => 1,
+                'max_stale_sec' => 180,
+                'timeout_sec' => 5,
+                'mode' => $mode,
+                'contracts' => [
+                    'instance_controller' => '0xYOUR_INSTALL_INSTANCE_CONTROLLER_CLONE',
+                    'release_registry' => '0x22681Ee2153B7B25bA6772B44c160BB60f4C333E',
+                ],
+            ],
+        ],
+    ];
 }

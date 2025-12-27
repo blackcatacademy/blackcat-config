@@ -5,9 +5,17 @@ Network:
 - Explorer: `https://edgenscan.io`
 - Chain ID: `4207`
 
+CLI helpers:
+
+```bash
+php vendor/bin/config runtime:template:trust-edgen
+php vendor/bin/config runtime:template:trust-edgen-compat
+php vendor/bin/config runtime:init --template=trust-edgen
+```
+
 ## Runtime config template (JSON)
 
-Create a runtime config file (recommended: `/etc/blackcat/config.json`) and fill it with at least:
+Create a runtime config file (recommended: `/etc/blackcat/config.runtime.json`) and fill it with at least:
 
 ```json
 {
@@ -22,7 +30,7 @@ Create a runtime config file (recommended: `/etc/blackcat/config.json`) and fill
       "rpc_quorum": 1,
       "max_stale_sec": 180,
       "timeout_sec": 5,
-      "mode": "root_uri",
+      "mode": "full",
       "contracts": {
         "instance_controller": "0xYOUR_INSTALL_INSTANCE_CONTROLLER_CLONE",
         "release_registry": "0x22681Ee2153B7B25bA6772B44c160BB60f4C333E"
@@ -35,6 +43,7 @@ Create a runtime config file (recommended: `/etc/blackcat/config.json`) and fill
 Notes:
 - `trust.web3.contracts.instance_controller` must be the **per-install clone** address (not the implementation).
 - `trust.web3.contracts.release_registry` is an optional **pin**; the source of truth is the on-chain pointer stored in the `InstanceController`.
+- `mode="full"` is the recommended strict default. For compatibility, use `mode="root_uri"` (weaker) explicitly.
 - For production, prefer multiple RPC endpoints and `rpc_quorum >= 2` when available.
 - `max_stale_sec=180` is the recommended strict default (after stale, runtime must fail closed).
 
@@ -47,7 +56,7 @@ Compute the attestation key/value:
 ```bash
 php vendor/bin/config runtime:attestation:runtime-config
 # or
-php vendor/bin/config runtime:attestation:runtime-config --path=/etc/blackcat/config.json
+php vendor/bin/config runtime:attestation:runtime-config --path=/etc/blackcat/config.runtime.json
 ```
 
 Then set `attestations[key]=value` on your per-install `InstanceController` and lock the key (recommended).

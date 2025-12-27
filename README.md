@@ -37,7 +37,7 @@ Some runtimes block `getenv()`/ENV entirely. Stage 2 provides **file-based runti
 ```php
 use BlackCat\Config\Runtime\Config;
 
-Config::initFromJsonFile('/etc/blackcat/config.json');
+Config::initFromJsonFile('/etc/blackcat/config.runtime.json');
 
 $dsn = Config::requireString('db.dsn'); // dot-notation
 ```
@@ -127,7 +127,7 @@ Runtime config keys (recommended baseline):
       "rpc_quorum": 1,
       "max_stale_sec": 180,
       "timeout_sec": 5,
-      "mode": "root_uri",
+      "mode": "full",
       "contracts": {
         "instance_controller": "0x1111111111111111111111111111111111111111",
         "release_registry": "0x2222222222222222222222222222222222222222"
@@ -162,6 +162,10 @@ RuntimeConfigValidator::assertTrustKernelWeb3Config(Config::repo());
 
 Edgen Chain template:
 - `blackcat-config/docs/TRUST_KERNEL_EDGEN.md`
+- CLI helpers:
+  - `php bin/config runtime:template:trust-edgen` (recommended strict default; `mode="full"`)
+  - `php bin/config runtime:template:trust-edgen-compat` (compat; `mode="root_uri"`, weaker)
+  - `php bin/config runtime:init --template=trust-edgen` (writes a strict config to the best available location)
 
 ## Stage 6: Source code policy scan (anti-bypass)
 
@@ -169,4 +173,5 @@ To keep the kernel security model intact, you can scan your repo for known bypas
 
 ```bash
 php bin/config security:scan .
+php bin/config security:attack-surface .
 ```

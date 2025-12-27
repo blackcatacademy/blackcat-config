@@ -79,7 +79,7 @@ final class RuntimeConfigValidator
      * Optional:
      * - trust.web3.contracts.release_registry (EVM address)
      * - trust.web3.max_stale_sec (int; default 180)
-     * - trust.web3.mode ("root_uri" | "full"; default "root_uri")
+     * - trust.web3.mode ("root_uri" | "full"; default "full")
      * - trust.web3.tx_outbox_dir (secure readable dir; recommended when buffering transactions)
      * - trust.web3.timeout_sec (int; default 5)
      * - trust.enforcement ("strict" | "warn"; default "strict") (deprecated; enforcement is bound to on-chain policy hash)
@@ -138,7 +138,7 @@ final class RuntimeConfigValidator
             throw new \RuntimeException('Invalid config value for trust.web3.max_stale_sec (expected 1..86400).');
         }
 
-        $modeRaw = $repo->get('trust.web3.mode', 'root_uri');
+        $modeRaw = $repo->get('trust.web3.mode', 'full');
         if (!is_string($modeRaw)) {
             throw new \RuntimeException('Invalid config type for trust.web3.mode (expected string).');
         }

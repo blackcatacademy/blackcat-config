@@ -10,7 +10,7 @@ use BlackCat\Config\Security\ConfigFilePolicy;
  * Global config facade (opt-in).
  *
  * Intended usage:
- *   Config::initFromJsonFile('/etc/blackcat/config.json');
+ *   Config::initFromJsonFile('/etc/blackcat/config.runtime.json');
  *   $dsn = Config::requireString('db.dsn');
  */
 final class Config
