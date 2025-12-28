@@ -12,6 +12,47 @@ use BlackCat\Config\Security\SecureFile;
 final class RuntimeConfigValidator
 {
     /**
+     * Validate HTTP/runtime edge configuration.
+     *
+     * Optional:
+     * - http.trusted_proxies (list of IP/CIDR strings)
+     */
+    public static function assertHttpConfig(ConfigRepository $repo): void
+    {
+        $http = $repo->get('http');
+        if ($http === null) {
+            return;
+        }
+        if (!is_array($http)) {
+            throw new \RuntimeException('Invalid config type for http (expected object).');
+        }
+
+        $trustedProxies = $repo->get('http.trusted_proxies');
+        if ($trustedProxies === null || $trustedProxies === '') {
+            return;
+        }
+        if (!is_array($trustedProxies)) {
+            throw new \RuntimeException('Invalid config type for http.trusted_proxies (expected list of strings).');
+        }
+
+        foreach ($trustedProxies as $i => $peer) {
+            if (!is_string($peer)) {
+                throw new \RuntimeException('Invalid config type for http.trusted_proxies[' . $i . '] (expected string).');
+            }
+            $peer = trim($peer);
+            if ($peer === '') {
+                throw new \RuntimeException('Invalid config value for http.trusted_proxies[' . $i . '] (expected non-empty string).');
+            }
+            if (str_contains($peer, "\0")) {
+                throw new \RuntimeException('Invalid config value for http.trusted_proxies[' . $i . '] (contains null byte).');
+            }
+            if (!self::isValidIpOrCidr($peer)) {
+                throw new \RuntimeException('Invalid config value for http.trusted_proxies[' . $i . '] (expected IP or CIDR).');
+            }
+        }
+    }
+
+    /**
      * Validate security-critical crypto config.
      *
      * Required:
@@ -22,8 +63,42 @@ final class RuntimeConfigValidator
      */
     public static function assertCryptoConfig(ConfigRepository $repo): void
     {
-        $keysDir = $repo->resolvePath($repo->requireString('crypto.keys_dir'));
-        SecureDir::assertSecureReadableDir($keysDir, ConfigDirPolicy::secretsDir());
+        $agentSocket = $repo->get('crypto.agent.socket_path');
+        if ($agentSocket !== null && $agentSocket !== '') {
+            if (!is_string($agentSocket)) {
+                throw new \RuntimeException('Invalid config type for crypto.agent.socket_path (expected string).');
+            }
+            $resolvedSocket = $repo->resolvePath($agentSocket);
+            self::assertAbsolutePath($resolvedSocket, 'crypto.agent.socket_path');
+        }
+
+        $keysDirRaw = $repo->get('crypto.keys_dir');
+        if ($keysDirRaw === null || $keysDirRaw === '') {
+            if ($agentSocket !== null && $agentSocket !== '') {
+                // In agent mode the web runtime may not have filesystem access to the key directory.
+                // Keep keys_dir optional to support root-owned secrets directories.
+                $keysDirRaw = null;
+            } else {
+                throw new \RuntimeException('Missing required config string: crypto.keys_dir');
+            }
+        }
+
+        if ($keysDirRaw !== null) {
+            if (!is_string($keysDirRaw)) {
+                throw new \RuntimeException('Invalid config type for crypto.keys_dir (expected string).');
+            }
+
+            $keysDir = $repo->resolvePath($keysDirRaw);
+
+            if ($agentSocket === null || $agentSocket === '') {
+                SecureDir::assertSecureReadableDir($keysDir, ConfigDirPolicy::secretsDir());
+            } else {
+                // Best-effort validation only (do not require runtime readability).
+                if (str_contains($keysDir, "\0") || trim($keysDir) === '') {
+                    throw new \RuntimeException('Invalid config value for crypto.keys_dir.');
+                }
+            }
+        }
 
         $manifest = $repo->get('crypto.manifest');
         if ($manifest === null || $manifest === '') {
@@ -250,6 +325,44 @@ final class RuntimeConfigValidator
         $host = strtolower($host);
 
         return $host === 'localhost' || $host === '127.0.0.1' || $host === '::1';
+    }
+
+    private static function isValidIpOrCidr(string $peer): bool
+    {
+        $peer = trim($peer);
+        if ($peer === '' || str_contains($peer, "\0")) {
+            return false;
+        }
+
+        if (!str_contains($peer, '/')) {
+            return filter_var($peer, FILTER_VALIDATE_IP) !== false;
+        }
+
+        [$ip, $bitsRaw] = explode('/', $peer, 2) + [null, null];
+        if (!is_string($ip) || !is_string($bitsRaw)) {
+            return false;
+        }
+        $ip = trim($ip);
+        $bitsRaw = trim($bitsRaw);
+        if ($ip === '' || $bitsRaw === '' || !ctype_digit($bitsRaw)) {
+            return false;
+        }
+
+        $bits = (int) $bitsRaw;
+        $isV4 = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
+        $isV6 = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
+        if (!$isV4 && !$isV6) {
+            return false;
+        }
+
+        if ($isV4 && ($bits < 0 || $bits > 32)) {
+            return false;
+        }
+        if ($isV6 && ($bits < 0 || $bits > 128)) {
+            return false;
+        }
+
+        return true;
     }
 
     private static function assertEvmAddress(string $address, string $key): void

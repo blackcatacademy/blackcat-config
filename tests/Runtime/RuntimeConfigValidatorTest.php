@@ -11,6 +11,51 @@ use PHPUnit\Framework\TestCase;
 
 final class RuntimeConfigValidatorTest extends TestCase
 {
+    public function testHttpConfigValidatesTrustedProxies(): void
+    {
+        $repo = ConfigRepository::fromArray([
+            'http' => [
+                'trusted_proxies' => [
+                    '127.0.0.1',
+                    '10.0.0.0/8',
+                    '::1',
+                    '2001:db8::/32',
+                ],
+            ],
+        ]);
+
+        RuntimeConfigValidator::assertHttpConfig($repo);
+        self::assertTrue(true);
+    }
+
+    public function testHttpConfigRejectsInvalidTrustedProxy(): void
+    {
+        $repo = ConfigRepository::fromArray([
+            'http' => [
+                'trusted_proxies' => [
+                    'not-an-ip',
+                ],
+            ],
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        RuntimeConfigValidator::assertHttpConfig($repo);
+    }
+
+    public function testCryptoConfigAllowsAgentModeWithoutKeysDir(): void
+    {
+        $repo = ConfigRepository::fromArray([
+            'crypto' => [
+                'agent' => [
+                    'socket_path' => '/tmp/blackcat-secrets-agent.sock',
+                ],
+            ],
+        ]);
+
+        RuntimeConfigValidator::assertCryptoConfig($repo);
+        self::assertTrue(true);
+    }
+
     public function testCryptoConfigRequiresKeysDir(): void
     {
         $repo = ConfigRepository::fromArray(['crypto' => []]);

@@ -53,6 +53,9 @@ final class ConfigRepository
         // Security-first: validate security-critical sections eagerly (when present).
         RuntimeConfigValidator::assertTrustKernelWeb3Config($repo);
 
+        if ($repo->get('http') !== null) {
+            RuntimeConfigValidator::assertHttpConfig($repo);
+        }
         if ($repo->get('crypto') !== null) {
             RuntimeConfigValidator::assertCryptoConfig($repo);
         }
