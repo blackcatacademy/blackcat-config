@@ -26,6 +26,12 @@ Create a runtime config file (recommended: `/etc/blackcat/config.runtime.json`) 
       "socket_path": "/etc/blackcat/secrets-agent.sock"
     }
   },
+  "db": {
+    "agent": {
+      "socket_path": "/etc/blackcat/secrets-agent.sock"
+    },
+    "credentials_file": "/etc/blackcat/db.credentials.json"
+  },
   "trust": {
     "integrity": {
       "root_dir": "/srv/blackcat",
@@ -49,11 +55,21 @@ Create a runtime config file (recommended: `/etc/blackcat/config.runtime.json`) 
 
 Notes:
 - `crypto.agent.socket_path` enables secrets-agent mode (recommended): key files can be root-owned and not readable by the web runtime.
+- In TrustKernel deployments, keep DB credentials out of runtime config; use `db.credentials_file` + a privileged agent to release creds conditionally.
 - `trust.web3.contracts.instance_controller` must be the **per-install clone** address (not the implementation).
 - `trust.web3.contracts.release_registry` is an optional **pin**; the source of truth is the on-chain pointer stored in the `InstanceController`.
 - `mode="full"` is the recommended strict default. For compatibility, use `mode="root_uri"` (weaker) explicitly.
 - For production, prefer multiple RPC endpoints and `rpc_quorum >= 2` when available.
 - `max_stale_sec=180` is the recommended strict default (after stale, runtime must fail closed).
+
+PHP runtime hardening (strict mode):
+- In strict policy, `blackcat-core` gates the deployment on critical `php.ini` posture (fail-closed).
+- Configure these via `php.ini` / `conf.d` (they are PHP_INI_SYSTEM and cannot be fixed at runtime):
+  - `allow_url_include=0`
+  - `phar.readonly=1`
+  - `open_basedir` must be set (include your app root + `/etc/blackcat` or equivalent)
+  - `disable_functions` should include: `exec,shell_exec,system,passthru,popen,proc_open,pcntl_exec`
+  - ensure an outbound Web3 transport exists (recommended: install `ext-curl`; optional: disable `allow_url_fopen`)
 
 ## Policy v3: runtime config attestation (recommended)
 

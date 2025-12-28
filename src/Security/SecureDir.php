@@ -107,6 +107,11 @@ final class SecureDir
     {
         $dir = $startDir;
         while ($dir !== '' && $dir !== '.' && $dir !== DIRECTORY_SEPARATOR) {
+            // When open_basedir is set, PHP cannot access paths outside the allowlist.
+            // In that case, checking writability of those parents is not meaningful for tamper-resistance.
+            if (!self::isPathAllowedByOpenBasedir($dir)) {
+                break;
+            }
             self::assertDirNotWritable($dir);
             $parent = dirname($dir);
             if ($parent === $dir) {
@@ -114,6 +119,51 @@ final class SecureDir
             }
             $dir = $parent;
         }
+    }
+
+    private static function isPathAllowedByOpenBasedir(string $path): bool
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            return true;
+        }
+
+        $raw = ini_get('open_basedir');
+        if (!is_string($raw) || trim($raw) === '') {
+            return true;
+        }
+
+        $path = trim($path);
+        if ($path === '' || str_contains($path, "\0")) {
+            return false;
+        }
+
+        $path = rtrim($path, DIRECTORY_SEPARATOR);
+        if ($path === '') {
+            return false;
+        }
+
+        $parts = explode(PATH_SEPARATOR, $raw);
+        foreach ($parts as $p) {
+            $p = trim((string) $p);
+            if ($p === '' || str_contains($p, "\0")) {
+                continue;
+            }
+            $p = rtrim($p, DIRECTORY_SEPARATOR);
+            if ($p === '') {
+                continue;
+            }
+            if ($p === DIRECTORY_SEPARATOR) {
+                return true;
+            }
+            if ($path === $p) {
+                return true;
+            }
+            if (str_starts_with($path, $p . DIRECTORY_SEPARATOR)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function assertDirNotWritable(string $dir): void

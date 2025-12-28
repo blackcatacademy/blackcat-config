@@ -42,6 +42,37 @@ final class RuntimeConfigValidatorTest extends TestCase
         RuntimeConfigValidator::assertHttpConfig($repo);
     }
 
+    public function testDbConfigRequiresAgentSocketPathWhenTrustKernelIsConfigured(): void
+    {
+        $repo = ConfigRepository::fromArray([
+            'trust' => [
+                'web3' => [],
+            ],
+            'db' => [],
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        RuntimeConfigValidator::assertDbConfig($repo);
+    }
+
+    public function testDbConfigRejectsInlineCredentialsInTrustKernelDeployments(): void
+    {
+        $repo = ConfigRepository::fromArray([
+            'trust' => [
+                'web3' => [],
+            ],
+            'db' => [
+                'agent' => [
+                    'socket_path' => '/tmp/blackcat-db-agent.sock',
+                ],
+                'dsn' => 'mysql:host=127.0.0.1;dbname=test',
+            ],
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        RuntimeConfigValidator::assertDbConfig($repo);
+    }
+
     public function testCryptoConfigAllowsAgentModeWithKeysDir(): void
     {
         $repo = ConfigRepository::fromArray([

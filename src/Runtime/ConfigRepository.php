@@ -56,6 +56,9 @@ final class ConfigRepository
         if ($repo->get('http') !== null) {
             RuntimeConfigValidator::assertHttpConfig($repo);
         }
+        if ($repo->get('db') !== null) {
+            RuntimeConfigValidator::assertDbConfig($repo);
+        }
         if ($repo->get('crypto') !== null) {
             RuntimeConfigValidator::assertCryptoConfig($repo);
         }

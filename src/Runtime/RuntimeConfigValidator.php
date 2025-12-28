@@ -105,6 +105,66 @@ final class RuntimeConfigValidator
     }
 
     /**
+     * Validate DB config (TrustKernel deployments should keep credentials out of runtime config).
+     *
+     * Optional:
+     * - db.agent.socket_path (absolute path)
+     * - db.credentials_file (absolute path, used by the secrets-agent; not readable by web runtime)
+     *
+     * In TrustKernel deployments (when trust.web3 exists):
+     * - db.agent.socket_path is required
+     * - db.dsn/db.user/db.pass must NOT be present in runtime config (attack surface)
+     */
+    public static function assertDbConfig(ConfigRepository $repo): void
+    {
+        $db = $repo->get('db');
+        if ($db === null) {
+            return;
+        }
+        if (!is_array($db)) {
+            throw new \RuntimeException('Invalid config type for db (expected object).');
+        }
+
+        $trustWeb3 = $repo->get('trust.web3');
+
+        $agentSocket = $repo->get('db.agent.socket_path');
+        if ($agentSocket !== null && $agentSocket !== '') {
+            if (!is_string($agentSocket)) {
+                throw new \RuntimeException('Invalid config type for db.agent.socket_path (expected string).');
+            }
+            $resolved = $repo->resolvePath($agentSocket);
+            self::assertAbsolutePath($resolved, 'db.agent.socket_path');
+        }
+
+        $credsFile = $repo->get('db.credentials_file');
+        if ($credsFile !== null && $credsFile !== '') {
+            if (!is_string($credsFile)) {
+                throw new \RuntimeException('Invalid config type for db.credentials_file (expected string).');
+            }
+            $resolved = $repo->resolvePath($credsFile);
+            self::assertAbsolutePath($resolved, 'db.credentials_file');
+        }
+
+        if ($trustWeb3 !== null) {
+            if ($agentSocket === null || $agentSocket === '') {
+                throw new \RuntimeException('Missing required config string: db.agent.socket_path');
+            }
+
+            $inline = [
+                'db.dsn',
+                'db.user',
+                'db.pass',
+            ];
+            foreach ($inline as $k) {
+                $v = $repo->get($k);
+                if ($v !== null && $v !== '') {
+                    throw new \RuntimeException('Inline DB credentials are not allowed in TrustKernel runtime config: ' . $k);
+                }
+            }
+        }
+    }
+
+    /**
      * Validate observability local-store config.
      *
      * Required:

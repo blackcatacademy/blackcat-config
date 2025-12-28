@@ -126,6 +126,12 @@ Runtime config keys (recommended baseline):
       "socket_path": "/etc/blackcat/secrets-agent.sock"
     }
   },
+  "db": {
+    "agent": {
+      "socket_path": "/etc/blackcat/secrets-agent.sock"
+    },
+    "credentials_file": "/etc/blackcat/db.credentials.json"
+  },
   "trust": {
     "integrity": {
       "root_dir": "/srv/blackcat",
@@ -152,6 +158,21 @@ Enforcement note:
 - Production vs dev behavior must **not** be switchable by editing runtime config.
 - In the BlackCat design, enforcement is bound to the **on-chain policy hash** committed in `InstanceController.activePolicyHash`.
   The runtime config may still contain `trust.enforcement` for backwards compatibility, but the trust-kernel runtime in `blackcat-core` does not use it.
+
+DB note:
+- In TrustKernel deployments, do not store `db.dsn` / `db.user` / `db.pass` in runtime config.
+- Store DB credentials in a root-only file (e.g. `/etc/blackcat/db.credentials.json`) and expose them via a privileged local agent (UNIX socket),
+  so the agent can enforce TrustKernel read/write permissions before releasing credentials.
+
+PHP runtime hardening gate (strict mode):
+- In strict policy (bound to the on-chain `activePolicyHash`), `blackcat-core` will fail-closed if critical PHP_INI_SYSTEM settings are unsafe.
+- In warn/dev policy it emits loud warnings but does not block.
+- Required examples for strict mode (configure via `php.ini` / `conf.d`, not runtime):
+  - `allow_url_include=0`
+  - `phar.readonly=1`
+  - `open_basedir` must be set (include your app root + runtime config dirs)
+  - `disable_functions` should include: `exec,shell_exec,system,passthru,popen,proc_open,pcntl_exec`
+  - ensure Web3 transport exists (recommended: install `ext-curl`; optional: disable `allow_url_fopen` to reduce SSRF surface)
 
 Defaults and rules:
 - `max_stale_sec` recommended production default is `180` (fail-closed after stale).

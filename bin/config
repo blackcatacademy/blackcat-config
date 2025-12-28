@@ -457,6 +457,12 @@ function trustKernelEdgenTemplate(string $mode): array
                 'socket_path' => '/etc/blackcat/secrets-agent.sock',
             ],
         ],
+        'db' => [
+            'agent' => [
+                'socket_path' => '/etc/blackcat/secrets-agent.sock',
+            ],
+            'credentials_file' => '/etc/blackcat/db.credentials.json',
+        ],
         'trust' => [
             'integrity' => [
                 'root_dir' => '/srv/blackcat',
