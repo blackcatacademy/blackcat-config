@@ -6,6 +6,7 @@ namespace BlackCat\Config\Runtime;
 
 use BlackCat\Config\Security\ConfigDirPolicy;
 use BlackCat\Config\Security\ConfigFilePolicy;
+use BlackCat\Config\Security\KernelAttestations;
 use BlackCat\Config\Security\SecureDir;
 use BlackCat\Config\Security\SecureFile;
 use BlackCat\Config\Security\SecurityException;
@@ -96,6 +97,7 @@ final class RuntimeDoctor
         self::checkRecommendedTrustKernelPosture($repo, $add);
         self::checkRecommendedSecretsBoundary($repo, $add);
         self::checkTxOutboxDir($repo, $add);
+        self::checkRecommendedKernelAttestations($repo, $add);
         self::checkPhpIniPosture($add);
 
         $summary = [
@@ -337,6 +339,113 @@ final class RuntimeDoctor
                 'disable_functions is empty. Consider disabling process execution primitives (exec,shell_exec,system,passthru,popen,proc_open,pcntl_exec) for web runtimes.',
                 null,
             );
+        }
+    }
+
+    /**
+     * @param callable('info'|'warn'|'error', string, string, array<string,mixed>|null):void $add
+     */
+    private static function checkRecommendedKernelAttestations(ConfigRepository $repo, callable $add): void
+    {
+        if ($repo->get('trust.web3') === null) {
+            return;
+        }
+
+        // ===== composer.lock (optional) =====
+        $rootDirRaw = $repo->get('trust.integrity.root_dir');
+        if (is_string($rootDirRaw) && trim($rootDirRaw) !== '') {
+            try {
+                $rootDir = $repo->resolvePath($rootDirRaw);
+                $composerLock = rtrim($rootDir, "/\\") . DIRECTORY_SEPARATOR . 'composer.lock';
+                if (!is_file($composerLock)) {
+                    $add('warn', 'attestation_composer_lock_missing', 'composer.lock not found under trust.integrity.root_dir (optional on-chain attestation).', [
+                        'expected_path' => $composerLock,
+                    ]);
+                } else {
+                    try {
+                        $policy = new ConfigFilePolicy(
+                            allowSymlinks: false,
+                            allowWorldReadable: true,
+                            allowGroupWritable: false,
+                            allowWorldWritable: false,
+                            maxBytes: 8 * 1024 * 1024,
+                            checkParentDirs: true,
+                            enforceOwner: false,
+                        );
+                        SecureFile::assertSecureReadableFile($composerLock, $policy);
+                        $raw = file_get_contents($composerLock);
+                        if ($raw === false) {
+                            throw new \RuntimeException('Unable to read composer.lock');
+                        }
+
+                        /** @var mixed $decoded */
+                        $decoded = json_decode($raw, true);
+                        if (!is_array($decoded)) {
+                            throw new \RuntimeException('composer.lock must decode to an object/array.');
+                        }
+
+                        /** @var array<string,mixed> $decoded */
+                        $key = KernelAttestations::composerLockAttestationKeyV1();
+                        $value = KernelAttestations::composerLockAttestationValueV1($decoded);
+
+                        $add('info', 'attestation_composer_lock_ready', 'composer.lock attestation computed (optional hardening).', [
+                            'path' => $composerLock,
+                            'key' => $key,
+                            'value' => $value,
+                        ]);
+                    } catch (\Throwable $e) {
+                        $add('warn', 'attestation_composer_lock_unavailable', 'composer.lock exists but cannot be used for attestation.', [
+                            'path' => $composerLock,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            } catch (\Throwable $e) {
+                $add('warn', 'attestation_composer_lock_unknown', 'Unable to locate composer.lock under trust.integrity.root_dir.', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // ===== PHP fingerprint (optional) =====
+        try {
+            $payload = KernelAttestations::phpFingerprintPayloadV1();
+            $value = KernelAttestations::phpFingerprintAttestationValueV1($payload);
+            $add('info', 'attestation_php_fingerprint_ready', 'PHP fingerprint attestation computed (optional hardening).', [
+                'key' => KernelAttestations::phpFingerprintAttestationKeyV1(),
+                'value' => $value,
+            ]);
+        } catch (\Throwable $e) {
+            $add('warn', 'attestation_php_fingerprint_failed', 'Unable to compute PHP fingerprint attestation.', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // ===== Image digest (optional) =====
+        $digestPath = '/etc/blackcat/image.digest';
+        if (is_file($digestPath) && !is_link($digestPath)) {
+            try {
+                SecureFile::assertSecureReadableFile($digestPath, ConfigFilePolicy::publicReadable());
+                $raw = file_get_contents($digestPath);
+                if ($raw === false) {
+                    throw new \RuntimeException('Unable to read image digest file.');
+                }
+                $value = KernelAttestations::imageDigestAttestationValueV1($raw);
+                $add('info', 'attestation_image_digest_ready', 'Image digest attestation loaded (optional hardening).', [
+                    'path' => $digestPath,
+                    'key' => KernelAttestations::imageDigestAttestationKeyV1(),
+                    'value' => $value,
+                ]);
+            } catch (\Throwable $e) {
+                $add('warn', 'attestation_image_digest_unavailable', 'Image digest file exists but cannot be used for attestation.', [
+                    'path' => $digestPath,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        } else {
+            $add('warn', 'attestation_image_digest_missing', 'Image digest file not found (optional on-chain attestation).', [
+                'expected_path' => $digestPath,
+            ]);
         }
     }
 

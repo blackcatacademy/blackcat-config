@@ -88,6 +88,7 @@ To create a runtime config file in the best available location (auto-recommended
 php bin/config runtime:recommend
 php bin/config runtime:init
 php bin/config runtime:doctor
+php bin/config runtime:attestation:runtime-config
 ```
 
 `runtime:init` creates (or reuses) the first path that can be made valid under strict rules.
@@ -159,6 +160,16 @@ Enforcement note:
 - Production vs dev behavior must **not** be switchable by editing runtime config.
 - In the BlackCat design, enforcement is bound to the **on-chain policy hash** committed in `InstanceController.activePolicyHash`.
   The runtime config may still contain `trust.enforcement` for backwards compatibility, but the trust-kernel runtime in `blackcat-core` does not use it.
+
+Optional additional on-chain attestations (hardening):
+- `blackcat.composer.lock.canonical_sha256.v1` (dependency lock provenance)
+- `blackcat.php.fingerprint.canonical_sha256.v1` (PHP+extensions fingerprint provenance)
+- `blackcat.image.digest.sha256.v1` (container image digest provenance)
+
+CLI helpers (compute bytes32 values to set+lock on the InstanceController):
+- `php bin/config runtime:attestation:composer-lock`
+- `php bin/config runtime:attestation:php-fingerprint`
+- `php bin/config runtime:attestation:image-digest`
 
 DB note:
 - In TrustKernel deployments, do not store `db.dsn` / `db.user` / `db.pass` in runtime config.

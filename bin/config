@@ -117,6 +117,150 @@ if (str_starts_with($command, 'runtime:')) {
                 exit(2);
             }
 
+        case 'runtime:attestation:composer-lock':
+            $target = null;
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg)) {
+                    continue;
+                }
+                if (str_starts_with($arg, '--path=')) {
+                    $target = substr($arg, 7);
+                }
+            }
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+                    continue;
+                }
+                $target ??= $arg;
+            }
+
+            try {
+                if ($target === null) {
+                    $repo = ConfigBootstrap::loadFirstAvailableJsonFile();
+                    $rootDirRaw = $repo->get('trust.integrity.root_dir');
+                    if (!is_string($rootDirRaw) || trim($rootDirRaw) === '') {
+                        throw new \RuntimeException('Unable to derive composer.lock path (missing trust.integrity.root_dir). Use --path=...');
+                    }
+                    $rootDir = $repo->resolvePath($rootDirRaw);
+                    $target = rtrim($rootDir, "/\\") . DIRECTORY_SEPARATOR . 'composer.lock';
+                }
+
+                $policy = new \BlackCat\Config\Security\ConfigFilePolicy(
+                    allowSymlinks: false,
+                    allowWorldReadable: true,
+                    allowGroupWritable: false,
+                    allowWorldWritable: false,
+                    maxBytes: 8 * 1024 * 1024,
+                    checkParentDirs: true,
+                    enforceOwner: false,
+                );
+
+                \BlackCat\Config\Security\SecureFile::assertSecureReadableFile($target, $policy);
+
+                $raw = file_get_contents($target);
+                if ($raw === false) {
+                    throw new \RuntimeException('Unable to read composer.lock: ' . $target);
+                }
+
+                /** @var mixed $decoded */
+                $decoded = json_decode($raw, true);
+                if (!is_array($decoded)) {
+                    throw new \RuntimeException('composer.lock must decode to an object/array: ' . $target);
+                }
+
+                /** @var array<string,mixed> $decoded */
+                $key = KernelAttestations::composerLockAttestationKeyV1();
+                $value = KernelAttestations::composerLockAttestationValueV1($decoded);
+
+                echo json_encode([
+                    'attestation' => [
+                        'key' => $key,
+                        'value' => $value,
+                    ],
+                    'source_path' => $target,
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+                exit(0);
+            } catch (\Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
+
+        case 'runtime:attestation:php-fingerprint':
+            try {
+                $payload = KernelAttestations::phpFingerprintPayloadV1();
+                $key = KernelAttestations::phpFingerprintAttestationKeyV1();
+                $value = KernelAttestations::phpFingerprintAttestationValueV1($payload);
+
+                echo json_encode([
+                    'attestation' => [
+                        'key' => $key,
+                        'value' => $value,
+                    ],
+                    'payload' => $payload,
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+                exit(0);
+            } catch (\Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
+
+        case 'runtime:attestation:image-digest':
+            $target = null;
+            $digest = null;
+            $sourcePath = null;
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg)) {
+                    continue;
+                }
+                if (str_starts_with($arg, '--path=')) {
+                    $target = substr($arg, 7);
+                }
+                if (str_starts_with($arg, '--digest=')) {
+                    $digest = substr($arg, 9);
+                }
+            }
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+                    continue;
+                }
+                if ($target === null && $digest === null) {
+                    if (is_file($arg)) {
+                        $target = $arg;
+                    } else {
+                        $digest = $arg;
+                    }
+                }
+            }
+
+            try {
+                $target ??= '/etc/blackcat/image.digest';
+                if ($digest === null) {
+                    $policy = ConfigFilePolicy::publicReadable();
+                    SecureFile::assertSecureReadableFile($target, $policy);
+                    $raw = file_get_contents($target);
+                    if ($raw === false) {
+                        throw new \RuntimeException('Unable to read image digest file: ' . $target);
+                    }
+                    $digest = $raw;
+                    $sourcePath = $target;
+                }
+
+                $key = KernelAttestations::imageDigestAttestationKeyV1();
+                $value = KernelAttestations::imageDigestAttestationValueV1($digest);
+
+                echo json_encode([
+                    'attestation' => [
+                        'key' => $key,
+                        'value' => $value,
+                    ],
+                    'source_path' => $sourcePath,
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+                exit(0);
+            } catch (\Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
+
         case 'runtime:doctor':
             $target = null;
             foreach ($commandArgs as $arg) {
