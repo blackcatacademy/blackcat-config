@@ -433,6 +433,7 @@ TXT;
 /**
  * @param 'root_uri'|'full' $mode
  * @return array{
+ *   crypto:array{keys_dir:string,agent:array{socket_path:string}},
  *   trust:array{
  *     integrity:array{root_dir:string,manifest:string},
  *     web3:array{
@@ -450,6 +451,12 @@ TXT;
 function trustKernelEdgenTemplate(string $mode): array
 {
     return [
+        'crypto' => [
+            'keys_dir' => '/etc/blackcat/keys',
+            'agent' => [
+                'socket_path' => '/etc/blackcat/secrets-agent.sock',
+            ],
+        ],
         'trust' => [
             'integrity' => [
                 'root_dir' => '/srv/blackcat',
@@ -459,8 +466,9 @@ function trustKernelEdgenTemplate(string $mode): array
                 'chain_id' => 4207,
                 'rpc_endpoints' => [
                     'https://rpc.layeredge.io',
+                    'https://edgenscan.io/api/eth-rpc',
                 ],
-                'rpc_quorum' => 1,
+                'rpc_quorum' => 2,
                 'max_stale_sec' => 180,
                 'timeout_sec' => 5,
                 'mode' => $mode,

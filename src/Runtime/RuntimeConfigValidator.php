@@ -74,29 +74,22 @@ final class RuntimeConfigValidator
 
         $keysDirRaw = $repo->get('crypto.keys_dir');
         if ($keysDirRaw === null || $keysDirRaw === '') {
-            if ($agentSocket !== null && $agentSocket !== '') {
-                // In agent mode the web runtime may not have filesystem access to the key directory.
-                // Keep keys_dir optional to support root-owned secrets directories.
-                $keysDirRaw = null;
-            } else {
-                throw new \RuntimeException('Missing required config string: crypto.keys_dir');
-            }
+            throw new \RuntimeException('Missing required config string: crypto.keys_dir');
         }
 
-        if ($keysDirRaw !== null) {
-            if (!is_string($keysDirRaw)) {
-                throw new \RuntimeException('Invalid config type for crypto.keys_dir (expected string).');
-            }
+        if (!is_string($keysDirRaw)) {
+            throw new \RuntimeException('Invalid config type for crypto.keys_dir (expected string).');
+        }
 
-            $keysDir = $repo->resolvePath($keysDirRaw);
+        $keysDir = $repo->resolvePath($keysDirRaw);
+        self::assertAbsolutePath($keysDir, 'crypto.keys_dir');
 
-            if ($agentSocket === null || $agentSocket === '') {
-                SecureDir::assertSecureReadableDir($keysDir, ConfigDirPolicy::secretsDir());
-            } else {
-                // Best-effort validation only (do not require runtime readability).
-                if (str_contains($keysDir, "\0") || trim($keysDir) === '') {
-                    throw new \RuntimeException('Invalid config value for crypto.keys_dir.');
-                }
+        if ($agentSocket === null || $agentSocket === '') {
+            SecureDir::assertSecureReadableDir($keysDir, ConfigDirPolicy::secretsDir());
+        } else {
+            // Best-effort validation only (do not require runtime readability).
+            if (str_contains($keysDir, "\0") || trim($keysDir) === '') {
+                throw new \RuntimeException('Invalid config value for crypto.keys_dir.');
             }
         }
 

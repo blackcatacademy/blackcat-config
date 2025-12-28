@@ -103,7 +103,11 @@ RuntimeConfigValidator::assertCryptoConfig(Config::repo());
 ```
 
 Validation includes:
-- `crypto.keys_dir` is required and must be a secure directory (`SecureDir`)
+- `crypto.keys_dir` is required
+- optional `crypto.agent.socket_path` enables **secrets-agent mode** (recommended):
+  - key files can be **root-owned** and **not readable** by the web runtime
+  - the web runtime reads key material via a local UNIX socket (fail-closed by TrustKernel)
+- when `crypto.agent.socket_path` is set, `crypto.keys_dir` is validated best-effort only (do not require runtime readability)
 - `crypto.manifest` is optional; public-readable is allowed, but it must not be writable/symlink
 
 Relevant tests:
@@ -116,6 +120,12 @@ Runtime config keys (recommended baseline):
 
 ```json
 {
+  "crypto": {
+    "keys_dir": "/etc/blackcat/keys",
+    "agent": {
+      "socket_path": "/etc/blackcat/secrets-agent.sock"
+    }
+  },
   "trust": {
     "integrity": {
       "root_dir": "/srv/blackcat",
@@ -123,8 +133,8 @@ Runtime config keys (recommended baseline):
     },
     "web3": {
       "chain_id": 4207,
-      "rpc_endpoints": ["https://rpc.layeredge.io"],
-      "rpc_quorum": 1,
+      "rpc_endpoints": ["https://rpc.layeredge.io", "https://edgenscan.io/api/eth-rpc"],
+      "rpc_quorum": 2,
       "max_stale_sec": 180,
       "timeout_sec": 5,
       "mode": "full",
@@ -146,6 +156,7 @@ Enforcement note:
 Defaults and rules:
 - `max_stale_sec` recommended production default is `180` (fail-closed after stale).
 - RPC endpoints must be `https://` (plain HTTP is allowed only for localhost).
+- production should use at least 2 independent RPC endpoints (`rpc_quorum >= 2`) to reduce single-endpoint trust.
 - `rpc_quorum` must be in `1..count(rpc_endpoints)`.
 - `trust.integrity.root_dir` must be an absolute, readable directory and must not be writable by group/world.
 - `trust.integrity.manifest` must be an absolute, readable file and must not be writable or a symlink.

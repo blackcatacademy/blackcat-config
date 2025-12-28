@@ -2,6 +2,7 @@
 
 Network:
 - RPC: `https://rpc.layeredge.io`
+- RPC (fallback): `https://edgenscan.io/api/eth-rpc`
 - Explorer: `https://edgenscan.io`
 - Chain ID: `4207`
 
@@ -19,6 +20,12 @@ Create a runtime config file (recommended: `/etc/blackcat/config.runtime.json`) 
 
 ```json
 {
+  "crypto": {
+    "keys_dir": "/etc/blackcat/keys",
+    "agent": {
+      "socket_path": "/etc/blackcat/secrets-agent.sock"
+    }
+  },
   "trust": {
     "integrity": {
       "root_dir": "/srv/blackcat",
@@ -26,8 +33,8 @@ Create a runtime config file (recommended: `/etc/blackcat/config.runtime.json`) 
     },
     "web3": {
       "chain_id": 4207,
-      "rpc_endpoints": ["https://rpc.layeredge.io"],
-      "rpc_quorum": 1,
+      "rpc_endpoints": ["https://rpc.layeredge.io", "https://edgenscan.io/api/eth-rpc"],
+      "rpc_quorum": 2,
       "max_stale_sec": 180,
       "timeout_sec": 5,
       "mode": "full",
@@ -41,6 +48,7 @@ Create a runtime config file (recommended: `/etc/blackcat/config.runtime.json`) 
 ```
 
 Notes:
+- `crypto.agent.socket_path` enables secrets-agent mode (recommended): key files can be root-owned and not readable by the web runtime.
 - `trust.web3.contracts.instance_controller` must be the **per-install clone** address (not the implementation).
 - `trust.web3.contracts.release_registry` is an optional **pin**; the source of truth is the on-chain pointer stored in the `InstanceController`.
 - `mode="full"` is the recommended strict default. For compatibility, use `mode="root_uri"` (weaker) explicitly.

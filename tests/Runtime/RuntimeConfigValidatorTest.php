@@ -42,10 +42,11 @@ final class RuntimeConfigValidatorTest extends TestCase
         RuntimeConfigValidator::assertHttpConfig($repo);
     }
 
-    public function testCryptoConfigAllowsAgentModeWithoutKeysDir(): void
+    public function testCryptoConfigAllowsAgentModeWithKeysDir(): void
     {
         $repo = ConfigRepository::fromArray([
             'crypto' => [
+                'keys_dir' => '/etc/blackcat/keys',
                 'agent' => [
                     'socket_path' => '/tmp/blackcat-secrets-agent.sock',
                 ],
