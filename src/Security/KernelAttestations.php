@@ -9,6 +9,7 @@ final class KernelAttestations
     private const RUNTIME_CONFIG_ATTESTATION_KEY_LABEL_V1 = 'blackcat.runtime_config.canonical_sha256.v1';
     private const COMPOSER_LOCK_ATTESTATION_KEY_LABEL_V1 = 'blackcat.composer.lock.canonical_sha256.v1';
     private const PHP_FINGERPRINT_ATTESTATION_KEY_LABEL_V1 = 'blackcat.php.fingerprint.canonical_sha256.v1';
+    private const PHP_FINGERPRINT_ATTESTATION_KEY_LABEL_V2 = 'blackcat.php.fingerprint.canonical_sha256.v2';
     private const IMAGE_DIGEST_ATTESTATION_KEY_LABEL_V1 = 'blackcat.image.digest.sha256.v1';
 
     public static function runtimeConfigAttestationKeyV1(): string
@@ -72,6 +73,49 @@ final class KernelAttestations
      * @param array{schema_version:int,type:string,php_version:string,php_sapi:string,extensions:array<string,string|null>} $payload
      */
     public static function phpFingerprintAttestationValueV1(array $payload): string
+    {
+        return CanonicalJson::sha256Bytes32($payload);
+    }
+
+    public static function phpFingerprintAttestationKeyV2(): string
+    {
+        return '0x' . hash('sha256', self::PHP_FINGERPRINT_ATTESTATION_KEY_LABEL_V2);
+    }
+
+    /**
+     * Stable PHP fingerprint intended for multi-process deployments (web SAPI + CLI workers).
+     *
+     * Notes:
+     * - Excludes PHP_SAPI to avoid false mismatches between PHP-FPM/CLI/cli-server workers.
+     *
+     * @return array{schema_version:int,type:string,php_version:string,extensions:array<string,string|null>}
+     */
+    public static function phpFingerprintPayloadV2(): array
+    {
+        $extensions = get_loaded_extensions();
+        sort($extensions, SORT_STRING);
+
+        $map = [];
+        foreach ($extensions as $ext) {
+            if (!is_string($ext) || $ext === '') {
+                continue;
+            }
+            $version = phpversion($ext);
+            $map[$ext] = is_string($version) && trim($version) !== '' ? trim($version) : null;
+        }
+
+        return [
+            'schema_version' => 2,
+            'type' => 'blackcat.php.fingerprint',
+            'php_version' => PHP_VERSION,
+            'extensions' => $map,
+        ];
+    }
+
+    /**
+     * @param array{schema_version:int,type:string,php_version:string,extensions:array<string,string|null>} $payload
+     */
+    public static function phpFingerprintAttestationValueV2(array $payload): string
     {
         return CanonicalJson::sha256Bytes32($payload);
     }

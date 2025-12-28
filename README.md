@@ -137,7 +137,8 @@ Runtime config keys (recommended baseline):
   "trust": {
     "integrity": {
       "root_dir": "/srv/blackcat",
-      "manifest": "/etc/blackcat/integrity.manifest.json"
+      "manifest": "/etc/blackcat/integrity.manifest.json",
+      "image_digest_file": "/etc/blackcat/image.digest"
     },
     "web3": {
       "chain_id": 4207,
@@ -163,7 +164,7 @@ Enforcement note:
 
 Optional additional on-chain attestations (hardening):
 - `blackcat.composer.lock.canonical_sha256.v1` (dependency lock provenance)
-- `blackcat.php.fingerprint.canonical_sha256.v1` (PHP+extensions fingerprint provenance)
+- `blackcat.php.fingerprint.canonical_sha256.v2` (PHP+extensions fingerprint provenance; stable across worker SAPIs)
 - `blackcat.image.digest.sha256.v1` (container image digest provenance)
 
 CLI helpers (compute bytes32 values to set+lock on the InstanceController):

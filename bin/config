@@ -187,16 +187,25 @@ if (str_starts_with($command, 'runtime:')) {
 
         case 'runtime:attestation:php-fingerprint':
             try {
-                $payload = KernelAttestations::phpFingerprintPayloadV1();
-                $key = KernelAttestations::phpFingerprintAttestationKeyV1();
-                $value = KernelAttestations::phpFingerprintAttestationValueV1($payload);
+                $payloadV2 = KernelAttestations::phpFingerprintPayloadV2();
+                $keyV2 = KernelAttestations::phpFingerprintAttestationKeyV2();
+                $valueV2 = KernelAttestations::phpFingerprintAttestationValueV2($payloadV2);
+
+                $payloadV1 = KernelAttestations::phpFingerprintPayloadV1();
+                $keyV1 = KernelAttestations::phpFingerprintAttestationKeyV1();
+                $valueV1 = KernelAttestations::phpFingerprintAttestationValueV1($payloadV1);
 
                 echo json_encode([
-                    'attestation' => [
-                        'key' => $key,
-                        'value' => $value,
+                    'attestation_v2' => [
+                        'key' => $keyV2,
+                        'value' => $valueV2,
                     ],
-                    'payload' => $payload,
+                    'payload_v2' => $payloadV2,
+                    'attestation_v1' => [
+                        'key' => $keyV1,
+                        'value' => $valueV1,
+                    ],
+                    'payload_v1' => $payloadV1,
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
                 exit(0);
             } catch (\Throwable $exception) {

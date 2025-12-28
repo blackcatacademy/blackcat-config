@@ -409,10 +409,10 @@ final class RuntimeDoctor
 
         // ===== PHP fingerprint (optional) =====
         try {
-            $payload = KernelAttestations::phpFingerprintPayloadV1();
-            $value = KernelAttestations::phpFingerprintAttestationValueV1($payload);
+            $payload = KernelAttestations::phpFingerprintPayloadV2();
+            $value = KernelAttestations::phpFingerprintAttestationValueV2($payload);
             $add('info', 'attestation_php_fingerprint_ready', 'PHP fingerprint attestation computed (optional hardening).', [
-                'key' => KernelAttestations::phpFingerprintAttestationKeyV1(),
+                'key' => KernelAttestations::phpFingerprintAttestationKeyV2(),
                 'value' => $value,
             ]);
         } catch (\Throwable $e) {
@@ -423,6 +423,14 @@ final class RuntimeDoctor
 
         // ===== Image digest (optional) =====
         $digestPath = '/etc/blackcat/image.digest';
+        $digestPathRaw = $repo->get('trust.integrity.image_digest_file');
+        if (is_string($digestPathRaw) && trim($digestPathRaw) !== '') {
+            try {
+                $digestPath = $repo->resolvePath($digestPathRaw);
+            } catch (\Throwable) {
+                $digestPath = trim($digestPathRaw);
+            }
+        }
         if (is_file($digestPath) && !is_link($digestPath)) {
             try {
                 SecureFile::assertSecureReadableFile($digestPath, ConfigFilePolicy::publicReadable());

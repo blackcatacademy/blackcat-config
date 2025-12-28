@@ -27,6 +27,11 @@ final class KernelAttestationsTest extends TestCase
         );
 
         self::assertSame(
+            '0x' . hash('sha256', 'blackcat.php.fingerprint.canonical_sha256.v2'),
+            KernelAttestations::phpFingerprintAttestationKeyV2(),
+        );
+
+        self::assertSame(
             '0x' . hash('sha256', 'blackcat.image.digest.sha256.v1'),
             KernelAttestations::imageDigestAttestationKeyV1(),
         );
@@ -49,16 +54,14 @@ final class KernelAttestationsTest extends TestCase
 
     public function testPhpFingerprintPayloadAndValueAreWellFormed(): void
     {
-        $payload = KernelAttestations::phpFingerprintPayloadV1();
+        $payload = KernelAttestations::phpFingerprintPayloadV2();
 
-        self::assertSame(1, $payload['schema_version']);
+        self::assertSame(2, $payload['schema_version']);
         self::assertSame('blackcat.php.fingerprint', $payload['type']);
         self::assertSame(PHP_VERSION, $payload['php_version']);
-        self::assertSame(PHP_SAPI, $payload['php_sapi']);
         self::assertIsArray($payload['extensions']);
 
-        $value = KernelAttestations::phpFingerprintAttestationValueV1($payload);
+        $value = KernelAttestations::phpFingerprintAttestationValueV2($payload);
         self::assertMatchesRegularExpression('/^0x[a-f0-9]{64}$/', $value);
     }
 }
-
