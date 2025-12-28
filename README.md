@@ -87,6 +87,7 @@ To create a runtime config file in the best available location (auto-recommended
 ```bash
 php bin/config runtime:recommend
 php bin/config runtime:init
+php bin/config runtime:doctor
 ```
 
 `runtime:init` creates (or reuses) the first path that can be made valid under strict rules.
@@ -181,6 +182,7 @@ Defaults and rules:
 - `rpc_quorum` must be in `1..count(rpc_endpoints)`.
 - `trust.integrity.root_dir` must be an absolute, readable directory and must not be writable by group/world.
 - `trust.integrity.manifest` must be an absolute, readable file and must not be writable or a symlink.
+- `trust.web3.tx_outbox_dir` should be writable for buffering tx intents, but never world-writable (example: `root:www-data 0770`).
 
 Validate Web3 trust-kernel config:
 

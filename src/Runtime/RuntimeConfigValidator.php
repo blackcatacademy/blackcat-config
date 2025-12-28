@@ -306,7 +306,7 @@ final class RuntimeConfigValidator
                 throw new \RuntimeException('Invalid config type for trust.web3.tx_outbox_dir (expected string).');
             }
             $resolvedOutboxDir = $repo->resolvePath($txOutboxDir);
-            SecureDir::assertSecureReadableDir($resolvedOutboxDir, ConfigDirPolicy::secretsDir());
+            SecureDir::assertSecureReadableDir($resolvedOutboxDir, ConfigDirPolicy::txOutboxDir());
             if (!is_writable($resolvedOutboxDir)) {
                 throw new \RuntimeException('Config directory is not writable: trust.web3.tx_outbox_dir');
             }

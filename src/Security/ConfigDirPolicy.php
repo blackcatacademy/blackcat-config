@@ -62,4 +62,26 @@ final class ConfigDirPolicy
             enforceOwner: false,
         );
     }
+
+    /**
+     * Policy for tx outbox / buffered transaction intent directories.
+     *
+     * The tx outbox is not key material, but it is still security-sensitive:
+     * it can contain incident hashes, check-ins, and other control-plane signals.
+     *
+     * Many deployments run the web runtime as a non-root user while provisioning as root.
+     * To keep compatibility, allow group-writable (e.g. root:www-data 0770) but never world-writable.
+     */
+    public static function txOutboxDir(): self
+    {
+        return new self(
+            allowSymlinks: false,
+            allowGroupWritable: true,
+            allowWorldWritable: false,
+            allowWorldReadable: false,
+            allowWorldExecutable: false,
+            checkParentDirs: true,
+            enforceOwner: true,
+        );
+    }
 }

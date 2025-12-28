@@ -22,6 +22,7 @@ use BlackCat\Config\Security\AttackSurfaceScanner;
 use BlackCat\Config\Telemetry\TelemetryEmitter;
 use BlackCat\Config\Runtime\RuntimeConfigInstaller;
 use BlackCat\Config\Runtime\ConfigBootstrap;
+use BlackCat\Config\Runtime\RuntimeDoctor;
 
 $args = $_SERVER['argv'] ?? [];
 array_shift($args);
@@ -111,6 +112,38 @@ if (str_starts_with($command, 'runtime:')) {
                     'source_path' => $repo->sourcePath(),
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
                 exit(0);
+            } catch (\Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
+
+        case 'runtime:doctor':
+            $target = null;
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg)) {
+                    continue;
+                }
+                if (str_starts_with($arg, '--path=')) {
+                    $target = substr($arg, 7);
+                }
+            }
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+                    continue;
+                }
+                $target ??= $arg;
+            }
+
+            try {
+                if ($target !== null) {
+                    $repo = ConfigRepository::fromJsonFile($target);
+                } else {
+                    $repo = ConfigBootstrap::loadFirstAvailableJsonFile();
+                }
+
+                $res = RuntimeDoctor::inspect($repo);
+                echo json_encode($res, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+                exit(($res['summary']['errors'] ?? 0) > 0 ? 2 : 0);
             } catch (\Throwable $exception) {
                 fwrite(STDERR, $exception->getMessage() . PHP_EOL);
                 exit(2);
@@ -425,6 +458,7 @@ Usage:
   config runtime:template:trust-edgen
   config runtime:template:trust-edgen-compat
   config runtime:attestation:runtime-config [--path=FILE]
+  config runtime:doctor [--path=FILE]
   config runtime:init [--force] [--out=FILE] [--template=trust-edgen|trust-edgen-compat]
 
 TXT;
@@ -443,6 +477,7 @@ TXT;
  *       max_stale_sec:int,
  *       timeout_sec:int,
  *       mode:'root_uri'|'full',
+ *       tx_outbox_dir:string,
  *       contracts:array{instance_controller:string,release_registry:string}
  *     }
  *   }
@@ -478,6 +513,7 @@ function trustKernelEdgenTemplate(string $mode): array
                 'max_stale_sec' => 180,
                 'timeout_sec' => 5,
                 'mode' => $mode,
+                'tx_outbox_dir' => '/var/lib/blackcat/tx-outbox',
                 'contracts' => [
                     'instance_controller' => '0xYOUR_INSTALL_INSTANCE_CONTROLLER_CLONE',
                     'release_registry' => '0x22681Ee2153B7B25bA6772B44c160BB60f4C333E',
