@@ -225,6 +225,63 @@ final class RuntimeConfigValidatorTest extends TestCase
         }
     }
 
+    public function testTrustKernelConfigAllowsLargeIntegrityManifestFile(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('POSIX permissions required.');
+        }
+
+        $base = $this->makeTmpDir(0700);
+        $rootDir = $base . '/root';
+        if (!mkdir($rootDir, 0700, true) && !is_dir($rootDir)) {
+            self::fail('Cannot create root dir: ' . $rootDir);
+        }
+
+        $manifestPath = $base . '/integrity.manifest.json';
+        $payload = [
+            'schema_version' => 1,
+            'type' => 'blackcat.integrity.manifest',
+            'files' => [
+                'README.md' => '0x' . str_repeat('11', 32),
+            ],
+            'padding' => str_repeat('a', (1024 * 1024) + 32),
+        ];
+        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($json)) {
+            self::fail('Unable to encode JSON.');
+        }
+        file_put_contents($manifestPath, $json . "\n");
+        @chmod($manifestPath, 0644);
+
+        try {
+            $repo = ConfigRepository::fromArray([
+                'trust' => [
+                    'integrity' => [
+                        'root_dir' => $rootDir,
+                        'manifest' => $manifestPath,
+                    ],
+                    'web3' => [
+                        'chain_id' => 4207,
+                        'rpc_endpoints' => [
+                            'https://rpc.layeredge.io',
+                        ],
+                        'rpc_quorum' => 1,
+                        'contracts' => [
+                            'instance_controller' => '0x1111111111111111111111111111111111111111',
+                        ],
+                    ],
+                ],
+            ]);
+
+            RuntimeConfigValidator::assertTrustKernelWeb3Config($repo);
+            self::assertTrue(true);
+        } finally {
+            @unlink($manifestPath);
+            @rmdir($rootDir);
+            @rmdir($base);
+        }
+    }
+
     public function testTrustKernelConfigRejectsNonTlsRpcEndpoint(): void
     {
         if (DIRECTORY_SEPARATOR === '\\') {

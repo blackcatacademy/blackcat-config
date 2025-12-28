@@ -190,7 +190,7 @@ final class RuntimeConfigValidator
 
         $manifestPath = $repo->resolvePath($repo->requireString('trust.integrity.manifest'));
         self::assertAbsolutePath($manifestPath, 'trust.integrity.manifest');
-        SecureFile::assertSecureReadableFile($manifestPath, ConfigFilePolicy::publicReadable());
+        SecureFile::assertSecureReadableFile($manifestPath, ConfigFilePolicy::integrityManifest());
 
         $enforcementRaw = $repo->get('trust.enforcement', 'strict');
         if (!is_string($enforcementRaw)) {
