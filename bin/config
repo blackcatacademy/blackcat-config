@@ -117,6 +117,56 @@ if (str_starts_with($command, 'runtime:')) {
                 exit(2);
             }
 
+        case 'runtime:attestation:http-allowed-hosts':
+            $target = null;
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg)) {
+                    continue;
+                }
+                if (str_starts_with($arg, '--path=')) {
+                    $target = substr($arg, 7);
+                }
+            }
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+                    continue;
+                }
+                $target ??= $arg;
+            }
+
+            try {
+                if ($target !== null) {
+                    $repo = ConfigRepository::fromJsonFile($target);
+                } else {
+                    $repo = ConfigBootstrap::loadFirstAvailableJsonFile();
+                }
+
+                $raw = $repo->get('http.allowed_hosts');
+                if ($raw === null || $raw === '') {
+                    throw new \RuntimeException('Missing required config list: http.allowed_hosts');
+                }
+                if (!is_array($raw)) {
+                    throw new \RuntimeException('Invalid config type for http.allowed_hosts (expected list of strings).');
+                }
+
+                $payload = KernelAttestations::httpAllowedHostsPayloadV1($raw);
+                $key = KernelAttestations::httpAllowedHostsAttestationKeyV1();
+                $value = \BlackCat\Config\Security\CanonicalJson::sha256Bytes32($payload);
+
+                echo json_encode([
+                    'attestation' => [
+                        'key' => $key,
+                        'value' => $value,
+                    ],
+                    'payload' => $payload,
+                    'source_path' => $repo->sourcePath(),
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+                exit(0);
+            } catch (\Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
+
         case 'runtime:attestation:composer-lock':
             $target = null;
             foreach ($commandArgs as $arg) {
@@ -611,6 +661,10 @@ Usage:
   config runtime:template:trust-edgen
   config runtime:template:trust-edgen-compat
   config runtime:attestation:runtime-config [--path=FILE]
+  config runtime:attestation:http-allowed-hosts [--path=FILE]
+  config runtime:attestation:composer-lock [--path=FILE]
+  config runtime:attestation:php-fingerprint
+  config runtime:attestation:image-digest [--path=FILE] [--digest=...]
   config runtime:doctor [--path=FILE]
   config runtime:init [--force] [--out=FILE] [--template=trust-edgen|trust-edgen-compat]
 

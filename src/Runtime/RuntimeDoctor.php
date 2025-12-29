@@ -351,6 +351,37 @@ final class RuntimeDoctor
             return;
         }
 
+        // ===== http.allowed_hosts (policy v5) =====
+        $allowedHosts = $repo->get('http.allowed_hosts');
+        if ($allowedHosts === null || $allowedHosts === '') {
+            $add(
+                'warn',
+                'attestation_http_allowed_hosts_missing',
+                'http.allowed_hosts is not configured. Trust policy v5 requires an on-chain host allowlist commitment.',
+                null,
+            );
+        } elseif (is_array($allowedHosts)) {
+            try {
+                $payload = KernelAttestations::httpAllowedHostsPayloadV1($allowedHosts);
+                $key = KernelAttestations::httpAllowedHostsAttestationKeyV1();
+                $value = \BlackCat\Config\Security\CanonicalJson::sha256Bytes32($payload);
+
+                $add('info', 'attestation_http_allowed_hosts_ready', 'HTTP allowed hosts attestation computed (policy v5).', [
+                    'key' => $key,
+                    'value' => $value,
+                    'hosts' => $payload['hosts'],
+                ]);
+            } catch (\Throwable $e) {
+                $add('warn', 'attestation_http_allowed_hosts_unavailable', 'http.allowed_hosts exists but cannot be used for attestation.', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        } else {
+            $add('warn', 'attestation_http_allowed_hosts_unavailable', 'http.allowed_hosts exists but cannot be used for attestation.', [
+                'error' => 'Invalid type (expected list of strings).',
+            ]);
+        }
+
         // ===== composer.lock (optional) =====
         $rootDirRaw = $repo->get('trust.integrity.root_dir');
         if (is_string($rootDirRaw) && trim($rootDirRaw) !== '') {

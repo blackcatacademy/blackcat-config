@@ -35,6 +35,11 @@ final class KernelAttestationsTest extends TestCase
             '0x' . hash('sha256', 'blackcat.image.digest.sha256.v1'),
             KernelAttestations::imageDigestAttestationKeyV1(),
         );
+
+        self::assertSame(
+            '0x' . hash('sha256', 'blackcat.http.allowed_hosts.canonical_sha256.v1'),
+            KernelAttestations::httpAllowedHostsAttestationKeyV1(),
+        );
     }
 
     public function testImageDigestAcceptsSha256Prefix(): void
@@ -63,5 +68,31 @@ final class KernelAttestationsTest extends TestCase
 
         $value = KernelAttestations::phpFingerprintAttestationValueV2($payload);
         self::assertMatchesRegularExpression('/^0x[a-f0-9]{64}$/', $value);
+    }
+
+    public function testHttpAllowedHostsAttestationNormalizesHostsAndHashesPayload(): void
+    {
+        $raw = [
+            'Example.COM',
+            '*.Example.com',
+            'example.com:443',
+            'localhost',
+            '127.0.0.1:80',
+            '[::1]:443',
+        ];
+
+        $payload = KernelAttestations::httpAllowedHostsPayloadV1($raw);
+        self::assertSame(1, $payload['schema_version']);
+        self::assertSame('blackcat.http.allowed_hosts', $payload['type']);
+        self::assertSame(['*.example.com', '127.0.0.1', '::1', 'example.com', 'localhost'], $payload['hosts']);
+
+        $value = KernelAttestations::httpAllowedHostsAttestationValueV1($raw);
+        self::assertMatchesRegularExpression('/^0x[a-f0-9]{64}$/', $value);
+    }
+
+    public function testHttpAllowedHostsAttestationRejectsUrls(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        KernelAttestations::httpAllowedHostsPayloadV1(['https://example.com']);
     }
 }

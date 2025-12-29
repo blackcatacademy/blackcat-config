@@ -6,6 +6,7 @@ namespace BlackCat\Config\Runtime;
 
 use BlackCat\Config\Security\ConfigDirPolicy;
 use BlackCat\Config\Security\ConfigFilePolicy;
+use BlackCat\Config\Security\KernelAttestations;
 use BlackCat\Config\Security\SecureDir;
 use BlackCat\Config\Security\SecureFile;
 
@@ -16,6 +17,7 @@ final class RuntimeConfigValidator
      *
      * Optional:
      * - http.trusted_proxies (list of IP/CIDR strings)
+     * - http.allowed_hosts (non-empty list of host patterns: host, host:port, *.domain.tld, [ipv6]:port)
      */
     public static function assertHttpConfig(ConfigRepository $repo): void
     {
@@ -28,26 +30,39 @@ final class RuntimeConfigValidator
         }
 
         $trustedProxies = $repo->get('http.trusted_proxies');
-        if ($trustedProxies === null || $trustedProxies === '') {
-            return;
-        }
-        if (!is_array($trustedProxies)) {
-            throw new \RuntimeException('Invalid config type for http.trusted_proxies (expected list of strings).');
+        if ($trustedProxies !== null && $trustedProxies !== '') {
+            if (!is_array($trustedProxies)) {
+                throw new \RuntimeException('Invalid config type for http.trusted_proxies (expected list of strings).');
+            }
+
+            foreach ($trustedProxies as $i => $peer) {
+                if (!is_string($peer)) {
+                    throw new \RuntimeException('Invalid config type for http.trusted_proxies[' . $i . '] (expected string).');
+                }
+                $peer = trim($peer);
+                if ($peer === '') {
+                    throw new \RuntimeException('Invalid config value for http.trusted_proxies[' . $i . '] (expected non-empty string).');
+                }
+                if (str_contains($peer, "\0")) {
+                    throw new \RuntimeException('Invalid config value for http.trusted_proxies[' . $i . '] (contains null byte).');
+                }
+                if (!self::isValidIpOrCidr($peer)) {
+                    throw new \RuntimeException('Invalid config value for http.trusted_proxies[' . $i . '] (expected IP or CIDR).');
+                }
+            }
         }
 
-        foreach ($trustedProxies as $i => $peer) {
-            if (!is_string($peer)) {
-                throw new \RuntimeException('Invalid config type for http.trusted_proxies[' . $i . '] (expected string).');
+        $allowedHosts = $repo->get('http.allowed_hosts');
+        if ($allowedHosts !== null && $allowedHosts !== '') {
+            if (!is_array($allowedHosts)) {
+                throw new \RuntimeException('Invalid config type for http.allowed_hosts (expected list of strings).');
             }
-            $peer = trim($peer);
-            if ($peer === '') {
-                throw new \RuntimeException('Invalid config value for http.trusted_proxies[' . $i . '] (expected non-empty string).');
-            }
-            if (str_contains($peer, "\0")) {
-                throw new \RuntimeException('Invalid config value for http.trusted_proxies[' . $i . '] (contains null byte).');
-            }
-            if (!self::isValidIpOrCidr($peer)) {
-                throw new \RuntimeException('Invalid config value for http.trusted_proxies[' . $i . '] (expected IP or CIDR).');
+
+            // Ensures the same normalization as the on-chain attestation value.
+            try {
+                KernelAttestations::httpAllowedHostsPayloadV1($allowedHosts);
+            } catch (\InvalidArgumentException $e) {
+                throw new \RuntimeException('Invalid config value for http.allowed_hosts: ' . $e->getMessage(), 0, $e);
             }
         }
     }

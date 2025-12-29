@@ -42,6 +42,38 @@ final class RuntimeConfigValidatorTest extends TestCase
         RuntimeConfigValidator::assertHttpConfig($repo);
     }
 
+    public function testHttpConfigValidatesAllowedHosts(): void
+    {
+        $repo = ConfigRepository::fromArray([
+            'http' => [
+                'allowed_hosts' => [
+                    'localhost',
+                    '127.0.0.1',
+                    'Example.COM:443',
+                    '*.example.com',
+                    '[::1]:443',
+                ],
+            ],
+        ]);
+
+        RuntimeConfigValidator::assertHttpConfig($repo);
+        self::assertTrue(true);
+    }
+
+    public function testHttpConfigRejectsUrlInAllowedHosts(): void
+    {
+        $repo = ConfigRepository::fromArray([
+            'http' => [
+                'allowed_hosts' => [
+                    'https://example.com',
+                ],
+            ],
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        RuntimeConfigValidator::assertHttpConfig($repo);
+    }
+
     public function testDbConfigRequiresAgentSocketPathWhenTrustKernelIsConfigured(): void
     {
         $repo = ConfigRepository::fromArray([
