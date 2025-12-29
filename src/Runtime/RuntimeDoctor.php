@@ -311,6 +311,21 @@ final class RuntimeDoctor
             return null;
         };
 
+        $parseCsv = static function (?string $raw): array {
+            if ($raw === null || trim($raw) === '') {
+                return [];
+            }
+            $out = [];
+            foreach (preg_split('/[\\s,]+/', trim($raw)) ?: [] as $part) {
+                $p = strtolower(trim((string) $part));
+                if ($p === '' || str_contains($p, "\0")) {
+                    continue;
+                }
+                $out[$p] = true;
+            }
+            return array_keys($out);
+        };
+
         $openBasedir = $get('open_basedir');
         if ($openBasedir === null || trim($openBasedir) === '') {
             $add(
@@ -331,6 +346,68 @@ final class RuntimeDoctor
             $add('warn', 'php_phar_readonly_disabled', 'phar.readonly is disabled. Set phar.readonly=1 to reduce PHAR deserialization risks.', null);
         }
 
+        $displayErrors = $flag($get('display_errors'));
+        $displayStartupErrors = $flag($get('display_startup_errors'));
+        if ($displayErrors === true || $displayStartupErrors === true) {
+            $add(
+                'warn',
+                'php_display_errors_enabled',
+                'display_errors/display_startup_errors is enabled (information disclosure). Set display_errors=0 and display_startup_errors=0.',
+                null,
+            );
+        }
+
+        $enableDl = $flag($get('enable_dl'));
+        if ($enableDl === true) {
+            $add('warn', 'php_enable_dl_enabled', 'enable_dl is enabled (runtime extension loading increases attack surface). Set enable_dl=0.', null);
+        }
+
+        $autoPrependFile = $get('auto_prepend_file');
+        if (is_string($autoPrependFile) && trim($autoPrependFile) !== '') {
+            $add(
+                'warn',
+                'php_auto_prepend_file_set',
+                'auto_prepend_file is set; this increases the risk of hidden code injection. Prefer leaving it empty.',
+                ['value' => trim($autoPrependFile)],
+            );
+        }
+
+        $autoAppendFile = $get('auto_append_file');
+        if (is_string($autoAppendFile) && trim($autoAppendFile) !== '') {
+            $add(
+                'warn',
+                'php_auto_append_file_set',
+                'auto_append_file is set; this increases the risk of hidden code injection. Prefer leaving it empty.',
+                ['value' => trim($autoAppendFile)],
+            );
+        }
+
+        $cgiFixPathinfo = $flag($get('cgi.fix_pathinfo'));
+        if ($cgiFixPathinfo === true && in_array(PHP_SAPI, ['fpm-fcgi', 'cgi', 'cgi-fcgi'], true)) {
+            $add(
+                'warn',
+                'php_cgi_fix_pathinfo_enabled',
+                'cgi.fix_pathinfo is enabled (risk in some FPM/CGI configurations). Set cgi.fix_pathinfo=0.',
+                null,
+            );
+        }
+
+        $allowUrlFopen = $flag($get('allow_url_fopen'));
+        $curlAvailable = function_exists('curl_init')
+            && function_exists('curl_setopt_array')
+            && function_exists('curl_exec')
+            && function_exists('curl_getinfo')
+            && function_exists('curl_close');
+
+        if (!$curlAvailable && $allowUrlFopen === false) {
+            $add(
+                'warn',
+                'php_no_transport_for_web3',
+                'Neither ext-curl is available nor allow_url_fopen is enabled. TrustKernel Web3 transport will not work.',
+                null,
+            );
+        }
+
         $disableFunctions = $get('disable_functions');
         if ($disableFunctions === null || trim($disableFunctions) === '') {
             $add(
@@ -339,6 +416,31 @@ final class RuntimeDoctor
                 'disable_functions is empty. Consider disabling process execution primitives (exec,shell_exec,system,passthru,popen,proc_open,pcntl_exec) for web runtimes.',
                 null,
             );
+        } else {
+            $disabled = $parseCsv($disableFunctions);
+            $dangerous = [
+                'exec',
+                'shell_exec',
+                'system',
+                'passthru',
+                'popen',
+                'proc_open',
+                'pcntl_exec',
+            ];
+            $missing = [];
+            foreach ($dangerous as $fn) {
+                if (!in_array($fn, $disabled, true)) {
+                    $missing[] = $fn;
+                }
+            }
+            if ($missing !== []) {
+                $add(
+                    'warn',
+                    'php_disable_functions_missing_dangerous',
+                    'Some dangerous process-exec functions are not disabled: ' . implode(',', $missing),
+                    ['missing' => $missing],
+                );
+            }
         }
     }
 
