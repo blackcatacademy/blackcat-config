@@ -17,6 +17,10 @@ $res = RuntimeConfigInstaller::initRecommended($seed, true); // force overwrite 
 // ['path' => '...', 'created' => bool, 'rejected' => [...]]
 ```
 
+Important:
+- `TrustKernelEdgenTemplate` includes placeholders (e.g. `trust.web3.contracts.instance_controller`).
+- You must replace them with real deployed contract addresses before boot, otherwise strict validation will fail.
+
 ## 2) Recommend-only (no writing)
 
 ```php
