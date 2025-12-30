@@ -42,6 +42,9 @@ blackcat config runtime attestation --path=/etc/blackcat/config.runtime.json
 
 `blackcat-cli` discovers this component via `blackcat-cli.json` and exposes the builtin `config` command.
 
+No CLI environments:
+- `docs/NO_CLI_SETUP.md`
+
 ## Stage 2: Runtime config (security core)
 
 Some runtimes block `getenv()`/ENV entirely. Stage 2 provides **file-based runtime config** with strict permission checks:
