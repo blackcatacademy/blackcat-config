@@ -1,9 +1,9 @@
 ![BlackCat Config](.github/blackcat-config-banner.png)
 
+# BlackCat Config
+
 [![CI](https://github.com/blackcatacademy/blackcat-config/actions/workflows/ci.yml/badge.svg)](https://github.com/blackcatacademy/blackcat-config/actions/workflows/ci.yml)
 [![CLI Manifest](https://github.com/blackcatacademy/blackcat-config/actions/workflows/cli-manifest.yml/badge.svg)](https://github.com/blackcatacademy/blackcat-config/actions/workflows/cli-manifest.yml)
-
-# BlackCat Config
 
 Central configuration and hardening layer for the `blackcatacademy` ecosystem.
 
