@@ -32,6 +32,18 @@ Stage 1 focuses on “profiles” (dev/staging/prod) and operational checks:
 
 ### CLI
 
+**Recommended (single source of truth):** use `blackcat-cli` (command: `blackcat config …`).
+
+```bash
+blackcat config runtime recommend
+blackcat config runtime init --force
+blackcat config runtime attestation --path=/etc/blackcat/config.runtime.json
+```
+
+`blackcat-cli` discovers this component via `blackcat-cli.json` and exposes the builtin `config` command.
+
+**Repo-local CLI (advanced / legacy):** `bin/config`
+
 ```bash
 php bin/config profile:list
 php bin/config profile:env dev
