@@ -42,6 +42,9 @@ Config::initFromJsonFile('/etc/blackcat/config.runtime.json');
 $dsn = Config::requireString('db.dsn'); // dot-notation
 ```
 
+Fail-closed note:
+- runtime config file paths must be **absolute** (relative paths are rejected by design).
+
 Path resolution:
 - filesystem paths inside the runtime config (e.g. `crypto.keys_dir`, `crypto.manifest`) can be relative,
   but they are resolved **relative to the config file location**, not the process working directory.

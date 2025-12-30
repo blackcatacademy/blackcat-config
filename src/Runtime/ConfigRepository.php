@@ -30,6 +30,17 @@ final class ConfigRepository
 
     public static function fromJsonFile(string $path, ?ConfigFilePolicy $policy = null): self
     {
+        $path = trim($path);
+        if ($path === '' || str_contains($path, "\0")) {
+            throw new SecurityException('Config file path is invalid.');
+        }
+        if (self::isStreamWrapperPath($path)) {
+            throw new SecurityException('Config file path must be a local filesystem path (stream wrappers are not allowed): ' . $path);
+        }
+        if (!self::isAbsolutePath($path)) {
+            throw new SecurityException('Config file path must be absolute (relative paths are not allowed): ' . $path);
+        }
+
         SecureFile::assertSecureReadableFile($path, $policy);
         self::assertNotInDocumentRoot($path);
 

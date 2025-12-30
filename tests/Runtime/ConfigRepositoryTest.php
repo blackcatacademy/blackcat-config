@@ -75,4 +75,30 @@ final class ConfigRepositoryTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $repo->resolvePath('../secrets');
     }
+
+    public function testFromJsonFileRejectsRelativePath(): void
+    {
+        $base = rtrim(sys_get_temp_dir(), '/\\') . '/blackcat-config-rel-' . bin2hex(random_bytes(6));
+        if (!mkdir($base, 0700, true) && !is_dir($base)) {
+            self::fail('Cannot create temp dir: ' . $base);
+        }
+        @chmod($base, 0700);
+
+        $path = $base . '/config.runtime.json';
+        file_put_contents($path, "{}\n");
+        @chmod($path, 0600);
+
+        $oldCwd = getcwd();
+        try {
+            chdir($base);
+            $this->expectException(SecurityException::class);
+            ConfigRepository::fromJsonFile('config.runtime.json');
+        } finally {
+            if (is_string($oldCwd) && $oldCwd !== '') {
+                @chdir($oldCwd);
+            }
+            @unlink($path);
+            @rmdir($base);
+        }
+    }
 }

@@ -116,6 +116,12 @@ final class RuntimeConfigInstallerTest extends TestCase
         }
     }
 
+    public function testInitRejectsRelativePath(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        RuntimeConfigInstaller::init(['a' => 1], '.blackcat/config.runtime.json', false);
+    }
+
     private function makeTmpDir(int $mode): string
     {
         $tmpBase = rtrim(sys_get_temp_dir(), '/\\');

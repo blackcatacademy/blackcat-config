@@ -174,6 +174,9 @@ final class RuntimeConfigInstaller
         if (self::containsTraversalSegment($path)) {
             throw new \InvalidArgumentException('Runtime config path must not contain traversal segments (..): ' . $path);
         }
+        if (!self::isAbsolutePath($path)) {
+            throw new \InvalidArgumentException('Runtime config path must be absolute (relative paths are not allowed): ' . $path);
+        }
 
         $dir = dirname($path);
         if ($dir === '' || $dir === '.' || $dir === DIRECTORY_SEPARATOR) {
@@ -294,6 +297,9 @@ final class RuntimeConfigInstaller
         }
         if (self::containsTraversalSegment($path)) {
             return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => 'Path must not contain traversal segments (..).'];
+        }
+        if (!self::isAbsolutePath($path)) {
+            return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => 'Path must be absolute (relative paths are not allowed).'];
         }
 
         $warnings = [];
@@ -445,6 +451,20 @@ final class RuntimeConfigInstaller
             }
         }
         return false;
+    }
+
+    private static function isAbsolutePath(string $path): bool
+    {
+        $path = trim($path);
+        if ($path === '') {
+            return false;
+        }
+
+        if ($path[0] === '/' || $path[0] === '\\') {
+            return true;
+        }
+
+        return (bool) preg_match('~^[a-zA-Z]:[\\\\/]~', $path);
     }
 
     private static function isLikelyTemporaryPath(string $path): bool
