@@ -152,8 +152,9 @@ Runtime config keys (recommended baseline):
       "timeout_sec": 5,
       "mode": "full",
       "contracts": {
-        "instance_controller": "0x1111111111111111111111111111111111111111",
-        "release_registry": "0x2222222222222222222222222222222222222222"
+        "instance_controller": "0xYOUR_INSTALL_INSTANCE_CONTROLLER_CLONE",
+        "release_registry": "0x22681Ee2153B7B25bA6772B44c160BB60f4C333E",
+        "instance_factory": "0x92C80Cff5d75dcD3846EFb5DF35957D5Aed1c7C5"
       },
       "tx_outbox_dir": "/var/lib/blackcat/tx-outbox"
     }

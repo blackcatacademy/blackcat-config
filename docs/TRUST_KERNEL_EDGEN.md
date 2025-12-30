@@ -46,7 +46,8 @@ Create a runtime config file (recommended: `/etc/blackcat/config.runtime.json`) 
       "mode": "full",
       "contracts": {
         "instance_controller": "0xYOUR_INSTALL_INSTANCE_CONTROLLER_CLONE",
-        "release_registry": "0x22681Ee2153B7B25bA6772B44c160BB60f4C333E"
+        "release_registry": "0x22681Ee2153B7B25bA6772B44c160BB60f4C333E",
+        "instance_factory": "0x92C80Cff5d75dcD3846EFb5DF35957D5Aed1c7C5"
       }
     }
   }
@@ -58,6 +59,7 @@ Notes:
 - In TrustKernel deployments, keep DB credentials out of runtime config; use `db.credentials_file` + a privileged agent to release creds conditionally.
 - `trust.web3.contracts.instance_controller` must be the **per-install clone** address (not the implementation).
 - `trust.web3.contracts.release_registry` is an optional **pin**; the source of truth is the on-chain pointer stored in the `InstanceController`.
+- `trust.web3.contracts.instance_factory` is used for **creating instances** during install/upgrade tooling (not required for runtime verification).
 - `mode="full"` is the recommended strict default. For compatibility, use `mode="root_uri"` (weaker) explicitly.
 - For production, prefer multiple RPC endpoints and `rpc_quorum >= 2` when available.
 - `max_stale_sec=180` is the recommended strict default (after stale, runtime must fail closed).

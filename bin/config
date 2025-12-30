@@ -697,7 +697,7 @@ TXT;
  *       timeout_sec:int,
  *       mode:'root_uri'|'full',
  *       tx_outbox_dir:string,
- *       contracts:array{instance_controller:string,release_registry:string}
+ *       contracts:array{instance_controller:string,release_registry:string,instance_factory:string}
  *     }
  *   }
  * }
@@ -736,6 +736,7 @@ function trustKernelEdgenTemplate(string $mode): array
                 'contracts' => [
                     'instance_controller' => '0xYOUR_INSTALL_INSTANCE_CONTROLLER_CLONE',
                     'release_registry' => '0x22681Ee2153B7B25bA6772B44c160BB60f4C333E',
+                    'instance_factory' => '0x92C80Cff5d75dcD3846EFb5DF35957D5Aed1c7C5',
                 ],
             ],
         ],
