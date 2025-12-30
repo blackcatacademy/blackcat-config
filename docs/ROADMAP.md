@@ -3,7 +3,7 @@
 ## Stage 1 – Foundation ✅
 - Loader aggregates defaults + profiles and exposes CLI (`profile:*`, `integration:*`, `security:*`, `telemetry:*`).
 - `profiles.php` includes dev/staging/prod profiles + env templates, telemetry, and integrations for installer/database/messaging/governance.
-- Telemetry (.ndjson) and smoke test (`php tests/ProfileConfigTest.php`) keep baseline coverage; `bin/config check` runs security/integration checklists.
+- Telemetry (.ndjson) and smoke test (`composer test`) keep baseline coverage; CLI UX is provided by `blackcat-cli` (`blackcat verify`, `blackcat config …`, `blackcat trust …`).
 
 ## Stage 2 – Installer Integration
 - Generate `installer.yaml` / env overlays for `blackcat-installer` and `blackcat-deployer`.

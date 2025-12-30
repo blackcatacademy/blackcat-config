@@ -7,9 +7,6 @@
     "php": "^8.3",
     "ext-json": "*"
   },
-  "suggest": {
-    "blackcatacademy/blackcat-cli": "Optional CLI frontend (single source of truth for CLI UX); provides `blackcat config …` commands."
-  },
   "autoload": {
     "psr-4": {
       "BlackCat\\Config\\": "src/"
@@ -25,9 +22,6 @@
     "phpstan/phpstan-phpunit": "^1.4",
     "phpunit/phpunit": "^11.0"
   },
-  "bin": [
-    "bin/config"
-  ],
   "scripts": {
     "test": "vendor/bin/phpunit --colors=always",
     "stan": "vendor/bin/phpstan analyse --configuration=phpstan.neon --memory-limit=512M"

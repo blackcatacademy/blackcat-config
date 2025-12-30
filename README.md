@@ -32,7 +32,7 @@ Stage 1 focuses on “profiles” (dev/staging/prod) and operational checks:
 
 ### CLI
 
-**Recommended (single source of truth):** use `blackcat-cli` (command: `blackcat config …`).
+Use `blackcat-cli` (command: `blackcat config …`).
 
 ```bash
 blackcat config runtime recommend
@@ -41,19 +41,6 @@ blackcat config runtime attestation --path=/etc/blackcat/config.runtime.json
 ```
 
 `blackcat-cli` discovers this component via `blackcat-cli.json` and exposes the builtin `config` command.
-
-**Repo-local CLI (advanced / legacy):** `bin/config`
-
-```bash
-php bin/config profile:list
-php bin/config profile:env dev
-php bin/config profile:render-env staging build/staging.env
-php bin/config integration:check prod
-php bin/config security:check prod
-php bin/config check
-```
-
-The first argument can be a custom `profiles.php` path; otherwise `config/profiles.php` is used.
 
 ## Stage 2: Runtime config (security core)
 
@@ -115,11 +102,9 @@ Discovery behavior:
 To create a runtime config file in the best available location (auto-recommended), use:
 
 ```bash
-php bin/config runtime:recommend
-php bin/config runtime:init
-php bin/config runtime:doctor
-php bin/config runtime:doctor --strict
-php bin/config runtime:attestation:runtime-config
+blackcat config runtime recommend
+blackcat config runtime init --force
+blackcat config runtime attestation --path=/etc/blackcat/config.runtime.json
 ```
 
 `runtime:init` creates (or reuses) the first path that can be made valid under strict rules.
@@ -199,10 +184,9 @@ Optional additional on-chain attestations (hardening):
 - `blackcat.php.fingerprint.canonical_sha256.v2` (PHP+extensions fingerprint provenance; stable across worker SAPIs)
 - `blackcat.image.digest.sha256.v1` (container image digest provenance)
 
-CLI helpers (compute bytes32 values to set+lock on the InstanceController):
-- `php bin/config runtime:attestation:composer-lock`
-- `php bin/config runtime:attestation:php-fingerprint`
-- `php bin/config runtime:attestation:image-digest`
+Notes:
+- These optional hardening attestations are typically computed by deployment tooling (e.g. `blackcat-testing` compute output)
+  and then set+locked on-chain via `blackcat trust tx:*`.
 
 DB note:
 - In TrustKernel deployments, do not store `db.dsn` / `db.user` / `db.pass` in runtime config.
@@ -240,16 +224,9 @@ RuntimeConfigValidator::assertTrustKernelWeb3Config(Config::repo());
 
 Edgen Chain template:
 - `blackcat-config/docs/TRUST_KERNEL_EDGEN.md`
-- CLI helpers:
-  - `php bin/config runtime:template:trust-edgen` (recommended strict default; `mode="full"`)
-  - `php bin/config runtime:template:trust-edgen-compat` (compat; `mode="root_uri"`, weaker)
-  - `php bin/config runtime:init --template=trust-edgen` (writes a strict config to the best available location)
+  - use `blackcat config runtime init` to create a secure file, then fill it using the JSON template in that doc
+  - use `blackcat config runtime attestation` + `blackcat trust tx:controller-attest-runtime-config` to set+lock policy v3+ commitments
 
 ## Stage 6: Source code policy scan (anti-bypass)
 
-To keep the kernel security model intact, you can scan your repo for known bypass patterns:
-
-```bash
-php bin/config security:scan .
-php bin/config security:attack-surface .
-```
+This repo provides scanning primitives, but the CLI surface is provided by `blackcat-cli`.
