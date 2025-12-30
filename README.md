@@ -1,3 +1,16 @@
+<p align="center">
+  <img src=".github/blackcat-config-banner.png" alt="BlackCat Config" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/blackcatacademy/blackcat-config/actions/workflows/ci.yml">
+    <img alt="CI" src="https://github.com/blackcatacademy/blackcat-config/actions/workflows/ci.yml/badge.svg">
+  </a>
+  <a href="https://github.com/blackcatacademy/blackcat-config/actions/workflows/cli-manifest.yml">
+    <img alt="CLI Manifest" src="https://github.com/blackcatacademy/blackcat-config/actions/workflows/cli-manifest.yml/badge.svg">
+  </a>
+</p>
+
 # BlackCat Config
 
 Central configuration and hardening layer for the `blackcatacademy` ecosystem.
@@ -63,7 +76,9 @@ Penetration-style tests live in `tests/Security/SecureFileTest.php`.
 ## Trust model & integrity
 
 Encryption requires a clear trust model (provenance + tamper detection). Design notes:
-- `blackcat-config/docs/TRUST_MODEL.md`
+- `docs/TRUST_MODEL.md`
+- `docs/TRUST_KERNEL_EDGEN.md`
+- `docs/ROADMAP.md`
 
 ## Stage 3: Config discovery helpers
 
