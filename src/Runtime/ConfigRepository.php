@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BlackCat\Config\Runtime;
 
 use BlackCat\Config\Security\ConfigFilePolicy;
+use BlackCat\Config\Security\SecurityException;
 use BlackCat\Config\Security\SecureFile;
 
 final class ConfigRepository
@@ -30,6 +31,7 @@ final class ConfigRepository
     public static function fromJsonFile(string $path, ?ConfigFilePolicy $policy = null): self
     {
         SecureFile::assertSecureReadableFile($path, $policy);
+        self::assertNotInDocumentRoot($path);
 
         $raw = file_get_contents($path);
         if ($raw === false) {
@@ -136,6 +138,12 @@ final class ConfigRepository
         if (str_contains($path, "\0")) {
             throw new \RuntimeException('Config path contains null byte.');
         }
+        if (self::isStreamWrapperPath($path)) {
+            throw new \RuntimeException('Config path must be a local filesystem path (stream wrappers are not allowed).');
+        }
+        if (self::containsTraversalSegment($path)) {
+            throw new \RuntimeException('Config path must not contain traversal segments (..).');
+        }
 
         if (self::isAbsolutePath($path)) {
             return $path;
@@ -164,6 +172,109 @@ final class ConfigRepository
         }
 
         return (bool) preg_match('~^[a-zA-Z]:[\\\\/]~', $path);
+    }
+
+    private static function isStreamWrapperPath(string $path): bool
+    {
+        $path = trim($path);
+        if ($path === '' || str_contains($path, "\0")) {
+            return false;
+        }
+
+        return (bool) preg_match('~^[a-zA-Z][a-zA-Z0-9+.-]*://~', $path);
+    }
+
+    private static function containsTraversalSegment(string $path): bool
+    {
+        $path = str_replace('\\', '/', $path);
+        foreach (explode('/', $path) as $seg) {
+            if ($seg === '..') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function assertNotInDocumentRoot(string $path): void
+    {
+        $docRoot = self::documentRoot();
+        if ($docRoot === null) {
+            return;
+        }
+
+        $docRootNorm = self::normalizeFsPath($docRoot);
+        $pathNorm = self::normalizeFsPath($path);
+        if ($docRootNorm === null || $pathNorm === null) {
+            return;
+        }
+
+        if (self::isPathWithin($pathNorm, $docRootNorm)) {
+            throw new SecurityException(sprintf(
+                'Runtime config file must not be located inside the web document root (%s): %s',
+                $docRootNorm,
+                $pathNorm,
+            ));
+        }
+    }
+
+    private static function documentRoot(): ?string
+    {
+        $candidates = [
+            $_SERVER['CONTEXT_DOCUMENT_ROOT'] ?? null,
+            $_SERVER['DOCUMENT_ROOT'] ?? null,
+        ];
+
+        foreach ($candidates as $raw) {
+            if (!is_string($raw)) {
+                continue;
+            }
+            $raw = trim($raw);
+            if ($raw === '' || str_contains($raw, "\0")) {
+                continue;
+            }
+            return $raw;
+        }
+
+        return null;
+    }
+
+    private static function normalizeFsPath(string $path): ?string
+    {
+        $path = trim($path);
+        if ($path === '' || str_contains($path, "\0")) {
+            return null;
+        }
+
+        $real = @realpath($path);
+        if (is_string($real) && $real !== '') {
+            $path = $real;
+        }
+
+        $path = str_replace('\\', '/', $path);
+        $path = rtrim($path, '/');
+        if ($path === '') {
+            $path = '/';
+        }
+
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $path = strtolower($path);
+        }
+
+        return $path;
+    }
+
+    private static function isPathWithin(string $child, string $parent): bool
+    {
+        $parent = rtrim($parent, '/');
+        if ($parent === '') {
+            $parent = '/';
+        }
+
+        if ($parent === '/') {
+            return str_starts_with($child, '/');
+        }
+
+        return $child === $parent || str_starts_with($child, $parent . '/');
     }
 
     /**

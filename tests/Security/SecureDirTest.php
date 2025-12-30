@@ -57,6 +57,39 @@ final class SecureDirTest extends TestCase
         }
     }
 
+    public function testRejectsSymlinkParentDirectory(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\' || !function_exists('symlink')) {
+            self::markTestSkipped('Symlink test not supported on this platform.');
+        }
+
+        $base = $this->makeTmpDir(0700);
+        $realParent = $base . '/real';
+        $targetDir = $realParent . '/keys';
+
+        if (!mkdir($targetDir, 0700, true) && !is_dir($targetDir)) {
+            self::fail('Cannot create dir: ' . $targetDir);
+        }
+        @chmod($realParent, 0700);
+        @chmod($targetDir, 0700);
+
+        $linkParent = $base . '/link';
+
+        try {
+            if (!@symlink($realParent, $linkParent)) {
+                self::markTestSkipped('Unable to create symlink (permissions).');
+            }
+
+            $this->expectException(SecurityException::class);
+            SecureDir::assertSecureReadableDir($linkParent . '/keys', ConfigDirPolicy::secretsDir());
+        } finally {
+            @unlink($linkParent);
+            @rmdir($targetDir);
+            @rmdir($realParent);
+            @rmdir($base);
+        }
+    }
+
     public function testRejectsUnexpectedOwnerWhenRunningAsRoot(): void
     {
         if (DIRECTORY_SEPARATOR === '\\') {

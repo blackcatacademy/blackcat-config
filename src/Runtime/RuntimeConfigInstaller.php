@@ -168,6 +168,12 @@ final class RuntimeConfigInstaller
         if (str_contains($path, "\0")) {
             throw new \InvalidArgumentException('Runtime config path contains null byte.');
         }
+        if (self::isStreamWrapperPath($path)) {
+            throw new \InvalidArgumentException('Runtime config path must be a local filesystem path (stream wrappers are not allowed): ' . $path);
+        }
+        if (self::containsTraversalSegment($path)) {
+            throw new \InvalidArgumentException('Runtime config path must not contain traversal segments (..): ' . $path);
+        }
 
         $dir = dirname($path);
         if ($dir === '' || $dir === '.' || $dir === DIRECTORY_SEPARATOR) {
@@ -282,6 +288,12 @@ final class RuntimeConfigInstaller
         }
         if (str_contains($path, "\0")) {
             return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => 'Path contains null byte.'];
+        }
+        if (self::isStreamWrapperPath($path)) {
+            return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => 'Path must be a local filesystem path (stream wrappers are not allowed).'];
+        }
+        if (self::containsTraversalSegment($path)) {
+            return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => 'Path must not contain traversal segments (..).'];
         }
 
         $warnings = [];
@@ -412,6 +424,27 @@ final class RuntimeConfigInstaller
         }
 
         return (bool) preg_match('~^/mnt/[a-zA-Z]/~', $path);
+    }
+
+    private static function isStreamWrapperPath(string $path): bool
+    {
+        $path = trim($path);
+        if ($path === '' || str_contains($path, "\0")) {
+            return false;
+        }
+
+        return (bool) preg_match('~^[a-zA-Z][a-zA-Z0-9+.-]*://~', $path);
+    }
+
+    private static function containsTraversalSegment(string $path): bool
+    {
+        $path = str_replace('\\', '/', $path);
+        foreach (explode('/', $path) as $seg) {
+            if ($seg === '..') {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static function isLikelyTemporaryPath(string $path): bool

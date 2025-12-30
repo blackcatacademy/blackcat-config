@@ -17,6 +17,12 @@ final class SecureFile
         if (str_contains($path, "\0")) {
             throw new SecurityException('Config file path contains null byte.');
         }
+        if (self::isStreamWrapperPath($path)) {
+            throw new SecurityException('Config file path must be a local filesystem path (stream wrappers are not allowed): ' . $path);
+        }
+        if (self::containsTraversalSegment($path)) {
+            throw new SecurityException('Config file path must not contain traversal segments (..): ' . $path);
+        }
 
         if (!file_exists($path)) {
             throw new SecurityException('Config file not found: ' . $path);
@@ -42,6 +48,10 @@ final class SecureFile
                 $policy->maxBytes,
                 $path
             ));
+        }
+
+        if (!$policy->allowSymlinks) {
+            self::assertNoSymlinkParents(dirname($path));
         }
 
         self::assertSecurePermissions($path, $policy);
@@ -88,7 +98,7 @@ final class SecureFile
 
     private static function assertOwnedByRootOrCurrentUser(string $path, string $label): void
     {
-        if (!function_exists('posix_geteuid')) {
+        if (!\function_exists('posix_geteuid') && !\function_exists(__NAMESPACE__ . '\\posix_geteuid')) {
             return;
         }
 
@@ -99,6 +109,9 @@ final class SecureFile
 
         $euid = posix_geteuid();
         if (!is_int($euid)) {
+            return;
+        }
+        if ($euid < 0) {
             return;
         }
 
@@ -190,6 +203,53 @@ final class SecureFile
         }
         if (($mode & 0o020) !== 0 && !$sticky) {
             throw new SecurityException(sprintf('Config directory must not be group-writable (%o): %s', $mode, $dir));
+        }
+    }
+
+    private static function isStreamWrapperPath(string $path): bool
+    {
+        $path = trim($path);
+        if ($path === '' || str_contains($path, "\0")) {
+            return false;
+        }
+
+        return (bool) preg_match('~^[a-zA-Z][a-zA-Z0-9+.-]*://~', $path);
+    }
+
+    private static function containsTraversalSegment(string $path): bool
+    {
+        $path = str_replace('\\', '/', $path);
+        foreach (explode('/', $path) as $seg) {
+            if ($seg === '..') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function assertNoSymlinkParents(string $dir): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            return;
+        }
+
+        $dir = rtrim(trim($dir), '/');
+        if ($dir === '' || $dir === '.' || $dir === DIRECTORY_SEPARATOR) {
+            return;
+        }
+        if (self::containsTraversalSegment($dir)) {
+            throw new SecurityException('Config directory path must not contain traversal segments (..): ' . $dir);
+        }
+
+        $prefix = str_starts_with($dir, '/') ? '/' : '';
+        $parts = array_values(array_filter(explode('/', ltrim($dir, '/')), static fn (string $p): bool => $p !== ''));
+
+        $cur = $prefix;
+        foreach ($parts as $part) {
+            $cur = $cur === '/' ? $cur . $part : $cur . '/' . $part;
+            if (is_link($cur)) {
+                throw new SecurityException('Config directory must not contain symlink path components: ' . $cur);
+            }
         }
     }
 }
