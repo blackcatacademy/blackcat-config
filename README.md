@@ -30,6 +30,10 @@ Stage 1 focuses on “profiles” (dev/staging/prod) and operational checks:
 - telemetry to `var/log/*.ndjson`,
 - smoke test (`composer test`) to keep the pipeline stable.
 
+Integrations are intentionally declarative:
+- file paths (absolute or relative to the `profiles.php` directory), or
+- `blackcat://<command>` references (preferred): a stable pointer to a `blackcat-cli` builtin (avoids hardcoding local paths like `../blackcat-cli/bin/...`).
+
 ### CLI
 
 Use `blackcat-cli` (command: `blackcat config …`).
