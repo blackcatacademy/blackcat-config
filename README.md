@@ -1,15 +1,7 @@
-<p align="center">
-  <img src=".github/blackcat-config-banner.png" alt="BlackCat Config" width="100%">
-</p>
+![BlackCat Config](.github/blackcat-config-banner.png)
 
-<p align="center">
-  <a href="https://github.com/blackcatacademy/blackcat-config/actions/workflows/ci.yml">
-    <img alt="CI" src="https://github.com/blackcatacademy/blackcat-config/actions/workflows/ci.yml/badge.svg">
-  </a>
-  <a href="https://github.com/blackcatacademy/blackcat-config/actions/workflows/cli-manifest.yml">
-    <img alt="CLI Manifest" src="https://github.com/blackcatacademy/blackcat-config/actions/workflows/cli-manifest.yml/badge.svg">
-  </a>
-</p>
+[![CI](https://github.com/blackcatacademy/blackcat-config/actions/workflows/ci.yml/badge.svg)](https://github.com/blackcatacademy/blackcat-config/actions/workflows/ci.yml)
+[![CLI Manifest](https://github.com/blackcatacademy/blackcat-config/actions/workflows/cli-manifest.yml/badge.svg)](https://github.com/blackcatacademy/blackcat-config/actions/workflows/cli-manifest.yml)
 
 # BlackCat Config
 
