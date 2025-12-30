@@ -157,6 +157,20 @@ final class RuntimeConfigInstaller
     }
 
     /**
+     * Convenience wrapper: initialize runtime config in the best available location.
+     *
+     * Equivalent to calling {@see self::init()} without providing an explicit path.
+     *
+     * @param array<string,mixed> $payload
+     * @param list<string>|null $candidates
+     * @return array{path:string,created:bool,rejected:array<string,string>}
+     */
+    public static function initRecommended(array $payload = [], bool $force = false, ?array $candidates = null): array
+    {
+        return self::init($payload, null, $force, $candidates);
+    }
+
+    /**
      * @param array<string,mixed> $payload
      */
     private static function ensureRuntimeConfigFile(string $path, array $payload, bool $force): bool

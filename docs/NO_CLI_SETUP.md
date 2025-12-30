@@ -5,16 +5,7 @@ Some platforms do not allow CLI execution (no `php` binary, blocked `exec()`, re
 
 This document shows how to do the same work as `blackcat config …` without relying on `blackcat-cli`.
 
-## 1) Recommend the best runtime-config path
-
-```php
-use BlackCat\Config\Runtime\RuntimeConfigInstaller;
-
-$recommendation = RuntimeConfigInstaller::recommendWritePath();
-// ['path' => '/etc/blackcat/config.runtime.json', 'reason' => '...']
-```
-
-## 2) Initialize a runtime config file from a template
+## 1) One-call auto init (recommended)
 
 ```php
 use BlackCat\Config\Runtime\RuntimeConfigInstaller;
@@ -22,12 +13,17 @@ use BlackCat\Config\Runtime\Templates\TrustKernelEdgenTemplate;
 
 $seed = TrustKernelEdgenTemplate::build('full'); // or: 'root_uri' for compatibility mode
 
-$res = RuntimeConfigInstaller::init(
-    $seed,
-    '/etc/blackcat/config.runtime.json',
-    true // force overwrite/replace if needed
-);
+$res = RuntimeConfigInstaller::initRecommended($seed, true); // force overwrite if needed
 // ['path' => '...', 'created' => bool, 'rejected' => [...]]
+```
+
+## 2) Recommend-only (no writing)
+
+```php
+use BlackCat\Config\Runtime\RuntimeConfigInstaller;
+
+$recommendation = RuntimeConfigInstaller::recommendWritePath();
+// ['path' => '/etc/blackcat/config.runtime.json', 'reason' => '...']
 ```
 
 ## 3) Load + validate before boot
@@ -72,4 +68,3 @@ Writing `/etc/blackcat/*` from a web runtime is not recommended. Treat runtime c
 - create them during installation (root/privileged context),
 - lock down permissions (no symlinks, no world-writable dirs),
 - keep secrets out of the web runtime (use a local agent boundary where possible).
-
