@@ -532,12 +532,6 @@ final class RuntimeConfigInstaller
             $paths[] = $home . '/.blackcat/config.runtime.json';
         }
 
-        // Last-resort: local working directory (only if the runtime is constrained).
-        $cwd = @getcwd();
-        if (is_string($cwd) && $cwd !== '') {
-            $paths[] = rtrim($cwd, '/\\') . '/.blackcat/config.runtime.json';
-        }
-
         return $paths;
     }
 

@@ -88,6 +88,7 @@ To create a runtime config file in the best available location (auto-recommended
 php bin/config runtime:recommend
 php bin/config runtime:init
 php bin/config runtime:doctor
+php bin/config runtime:doctor --strict
 php bin/config runtime:attestation:runtime-config
 ```
 

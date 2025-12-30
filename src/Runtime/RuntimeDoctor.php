@@ -24,6 +24,7 @@ final class RuntimeDoctor
     /**
      * @return array{
      *   ok:bool,
+     *   ok_strict:bool,
      *   tier:'strong'|'medium'|'compat',
      *   source_path:?string,
      *   findings:list<array{
@@ -98,6 +99,7 @@ final class RuntimeDoctor
         self::checkRecommendedSecretsBoundary($repo, $add);
         self::checkTxOutboxDir($repo, $add);
         self::checkRecommendedKernelAttestations($repo, $add);
+        self::checkPathHeuristics($repo, $add);
         self::checkPhpIniPosture($add);
 
         $summary = [
@@ -118,8 +120,12 @@ final class RuntimeDoctor
 
         $tier = self::deriveTier($repo, $findings);
 
+        $ok = $summary['errors'] === 0;
+        $okStrict = $summary['errors'] === 0 && $summary['warnings'] === 0;
+
         return [
-            'ok' => $summary['errors'] === 0,
+            'ok' => $ok,
+            'ok_strict' => $okStrict,
             'tier' => $tier,
             'source_path' => $sourcePath,
             'findings' => $findings,
@@ -278,6 +284,81 @@ final class RuntimeDoctor
             $add('warn', 'tx_outbox_invalid', 'Tx outbox directory is configured but does not satisfy security policy.', [
                 'error' => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Heuristics that are hard to express in schema validation but matter for security posture.
+     *
+     * @param callable('info'|'warn'|'error', string, string, array<string,mixed>|null):void $add
+     */
+    private static function checkPathHeuristics(ConfigRepository $repo, callable $add): void
+    {
+        $docRoot = self::documentRoot();
+        $docRootNorm = $docRoot !== null ? self::normalizeFsPath($docRoot) : null;
+
+        /** @var list<array{key:string,label:string,docroot_severity:'warn'|'error'}> $keys */
+        $keys = [
+            ['key' => 'crypto.keys_dir', 'label' => 'crypto.keys_dir', 'docroot_severity' => 'error'],
+            ['key' => 'crypto.manifest', 'label' => 'crypto.manifest', 'docroot_severity' => 'warn'],
+            ['key' => 'crypto.agent.socket_path', 'label' => 'crypto.agent.socket_path', 'docroot_severity' => 'error'],
+            ['key' => 'db.credentials_file', 'label' => 'db.credentials_file', 'docroot_severity' => 'error'],
+            ['key' => 'db.agent.socket_path', 'label' => 'db.agent.socket_path', 'docroot_severity' => 'error'],
+            ['key' => 'trust.integrity.root_dir', 'label' => 'trust.integrity.root_dir', 'docroot_severity' => 'warn'],
+            ['key' => 'trust.integrity.manifest', 'label' => 'trust.integrity.manifest', 'docroot_severity' => 'warn'],
+            ['key' => 'trust.integrity.image_digest_file', 'label' => 'trust.integrity.image_digest_file', 'docroot_severity' => 'warn'],
+            ['key' => 'trust.web3.tx_outbox_dir', 'label' => 'trust.web3.tx_outbox_dir', 'docroot_severity' => 'error'],
+            ['key' => 'observability.storage_dir', 'label' => 'observability.storage_dir', 'docroot_severity' => 'warn'],
+        ];
+
+        foreach ($keys as $row) {
+            $raw = $repo->get($row['key']);
+            if (!is_string($raw) || trim($raw) === '') {
+                continue;
+            }
+
+            $raw = trim($raw);
+            $resolved = $raw;
+            try {
+                $resolved = $repo->resolvePath($raw);
+            } catch (\Throwable) {
+                // best-effort: still report heuristics on raw value
+                $resolved = $raw;
+            }
+
+            $pathNorm = self::normalizeFsPath($resolved);
+
+            if ($pathNorm !== null && str_starts_with($pathNorm, '/mnt/')) {
+                $add(
+                    'warn',
+                    'path_on_windows_mount',
+                    $row['label'] . ' is on a Windows-mounted filesystem (/mnt/*). Prefer a Linux volume/WSL filesystem for security-critical paths.',
+                    ['key' => $row['key'], 'path' => $resolved],
+                );
+            }
+
+            if (self::isLikelyTemporaryPath($pathNorm ?? $resolved)) {
+                $add(
+                    'warn',
+                    'path_temporary_location',
+                    $row['label'] . ' appears to be in a temporary directory. Prefer a persistent dedicated location.',
+                    ['key' => $row['key'], 'path' => $resolved],
+                );
+            }
+
+            if ($docRootNorm !== null && $pathNorm !== null && self::isPathWithin($pathNorm, $docRootNorm)) {
+                $severity = $row['docroot_severity'];
+                $add(
+                    $severity,
+                    'path_inside_document_root',
+                    $row['label'] . ' is located inside the web document root. This can expose secrets/control-plane files to HTTP; move it outside docroot.',
+                    [
+                        'key' => $row['key'],
+                        'path' => $resolved,
+                        'document_root' => $docRootNorm,
+                    ],
+                );
+            }
         }
     }
 
@@ -618,5 +699,78 @@ final class RuntimeDoctor
             return 'medium';
         }
         return 'strong';
+    }
+
+    private static function documentRoot(): ?string
+    {
+        $candidates = [
+            $_SERVER['CONTEXT_DOCUMENT_ROOT'] ?? null,
+            $_SERVER['DOCUMENT_ROOT'] ?? null,
+        ];
+
+        foreach ($candidates as $raw) {
+            if (!is_string($raw)) {
+                continue;
+            }
+            $raw = trim($raw);
+            if ($raw === '' || str_contains($raw, "\0")) {
+                continue;
+            }
+            return $raw;
+        }
+
+        return null;
+    }
+
+    private static function normalizeFsPath(string $path): ?string
+    {
+        $path = trim($path);
+        if ($path === '' || str_contains($path, "\0")) {
+            return null;
+        }
+
+        $real = @realpath($path);
+        if (is_string($real) && $real !== '') {
+            $path = $real;
+        }
+
+        $path = str_replace('\\', '/', $path);
+        $path = rtrim($path, '/');
+        if ($path === '') {
+            $path = '/';
+        }
+
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $path = strtolower($path);
+        }
+
+        return $path;
+    }
+
+    private static function isPathWithin(string $child, string $parent): bool
+    {
+        $parent = rtrim($parent, '/');
+        if ($parent === '') {
+            $parent = '/';
+        }
+
+        if ($parent === '/') {
+            return str_starts_with($child, '/');
+        }
+
+        return $child === $parent || str_starts_with($child, $parent . '/');
+    }
+
+    private static function isLikelyTemporaryPath(string $path): bool
+    {
+        $path = str_replace('\\', '/', trim($path));
+        if ($path === '') {
+            return false;
+        }
+
+        return str_starts_with($path, '/tmp/')
+            || str_starts_with($path, '/var/tmp/')
+            || str_starts_with($path, '/run/')
+            || str_starts_with($path, '/dev/shm/');
     }
 }

@@ -247,6 +247,11 @@ final class SecureFile
         $cur = $prefix;
         foreach ($parts as $part) {
             $cur = $cur === '/' ? $cur . $part : $cur . '/' . $part;
+            // When open_basedir is set, PHP cannot access paths outside the allowlist.
+            // In that case, checking symlink status of those parents is not meaningful.
+            if (!self::isPathAllowedByOpenBasedir($cur)) {
+                break;
+            }
             if (is_link($cur)) {
                 throw new SecurityException('Config directory must not contain symlink path components: ' . $cur);
             }

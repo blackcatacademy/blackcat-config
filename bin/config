@@ -322,6 +322,7 @@ if (str_starts_with($command, 'runtime:')) {
 
         case 'runtime:doctor':
             $target = null;
+            $strict = in_array('--strict', $commandArgs, true);
             foreach ($commandArgs as $arg) {
                 if (!is_string($arg)) {
                     continue;
@@ -346,7 +347,18 @@ if (str_starts_with($command, 'runtime:')) {
 
                 $res = RuntimeDoctor::inspect($repo);
                 echo json_encode($res, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
-                exit(($res['summary']['errors'] ?? 0) > 0 ? 2 : 0);
+
+                $errors = (int)($res['summary']['errors'] ?? 0);
+                $warnings = (int)($res['summary']['warnings'] ?? 0);
+
+                if ($errors > 0) {
+                    exit(2);
+                }
+                if ($strict && $warnings > 0) {
+                    exit(2);
+                }
+
+                exit(0);
             } catch (\Throwable $exception) {
                 fwrite(STDERR, $exception->getMessage() . PHP_EOL);
                 exit(2);
@@ -665,7 +677,7 @@ Usage:
   config runtime:attestation:composer-lock [--path=FILE]
   config runtime:attestation:php-fingerprint
   config runtime:attestation:image-digest [--path=FILE] [--digest=...]
-  config runtime:doctor [--path=FILE]
+  config runtime:doctor [--path=FILE] [--strict]
   config runtime:init [--force] [--out=FILE] [--template=trust-edgen|trust-edgen-compat]
 
 TXT;
