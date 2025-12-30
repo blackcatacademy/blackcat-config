@@ -12,6 +12,9 @@ final class Manifest
 {
     public const REPOSITORY = 'blackcat-config';
 
+    /**
+     * @return array{repository:string, role:string, integrations:string, status:string}
+     */
     public static function describe(): array
     {
         return [

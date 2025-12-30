@@ -35,7 +35,7 @@ return [
             ],
             'integrations' => [
                 'installer' => '../blackcat-installer/bin/installer',
-                'database' => '../blackcat-database/bin/dbctl.php',
+                'database' => '../blackcat-cli/bin/dbctl',
                 'messaging' => '../blackcat-messaging/bin/messaging',
             ],
             'security' => [
@@ -56,7 +56,7 @@ return [
             ],
             'integrations' => [
                 'installer' => '../blackcat-installer/bin/installer',
-                'database' => '../blackcat-database/bin/dbctl.php',
+                'database' => '../blackcat-cli/bin/dbctl',
                 'messaging' => '../blackcat-messaging/bin/messaging',
                 'security' => '../blackcat-security/bin/security',
             ],

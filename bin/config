@@ -3,15 +3,26 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/../src/autoload.php';
+$autoload = __DIR__ . '/../vendor/autoload.php';
+if (is_file($autoload)) {
+    require $autoload;
+} else {
+    require __DIR__ . '/../src/autoload.php';
+}
 
 use BlackCat\Config\Config\ProfileConfig;
 use BlackCat\Config\Env\EnvRenderer;
 use BlackCat\Config\Integration\IntegrationChecker;
 use BlackCat\Config\Profile\ConfigProfile;
+use BlackCat\Config\Runtime\ConfigRepository;
 use BlackCat\Config\Security\SecurityChecklist;
+use BlackCat\Config\Security\KernelAttestations;
+use BlackCat\Config\Security\SourceCodePolicyScanner;
+use BlackCat\Config\Security\AttackSurfaceScanner;
 use BlackCat\Config\Telemetry\TelemetryEmitter;
-use Throwable;
+use BlackCat\Config\Runtime\RuntimeConfigInstaller;
+use BlackCat\Config\Runtime\ConfigBootstrap;
+use BlackCat\Config\Runtime\RuntimeDoctor;
 
 $args = $_SERVER['argv'] ?? [];
 array_shift($args);
@@ -24,9 +35,462 @@ if ($args !== [] && is_file($args[0])) {
 $command = $args[0] ?? 'profile:list';
 $commandArgs = array_slice($args, 1);
 
+// Runtime config commands do not depend on profiles.php.
+if (str_starts_with($command, 'runtime:')) {
+    switch ($command) {
+        case 'runtime:paths':
+            echo json_encode([
+                'write_paths' => RuntimeConfigInstaller::defaultWritePaths(),
+                'read_paths' => ConfigBootstrap::defaultJsonPaths(),
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+            exit(0);
+
+        case 'runtime:scan':
+            echo json_encode(
+                array_diff_key(
+                    ConfigBootstrap::scanFirstAvailableJsonFile(),
+                    ['repo' => true],
+                ),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+            ) . PHP_EOL;
+            exit(0);
+
+        case 'runtime:recommend':
+            echo json_encode(
+                RuntimeConfigInstaller::recommendWritePath(),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+            ) . PHP_EOL;
+            exit(0);
+
+        case 'runtime:template:trust-edgen':
+            echo json_encode(
+                trustKernelEdgenTemplate('full'),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+            ) . PHP_EOL;
+            exit(0);
+
+        case 'runtime:template:trust-edgen-compat':
+            echo json_encode(
+                trustKernelEdgenTemplate('root_uri'),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+            ) . PHP_EOL;
+            exit(0);
+
+        case 'runtime:attestation:runtime-config':
+            $target = null;
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg)) {
+                    continue;
+                }
+                if (str_starts_with($arg, '--path=')) {
+                    $target = substr($arg, 7);
+                }
+            }
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+                    continue;
+                }
+                $target ??= $arg;
+            }
+
+            try {
+                if ($target !== null) {
+                    $repo = ConfigRepository::fromJsonFile($target);
+                } else {
+                    $repo = ConfigBootstrap::loadFirstAvailableJsonFile();
+                }
+
+                $data = $repo->toArray();
+                $key = KernelAttestations::runtimeConfigAttestationKeyV1();
+                $value = KernelAttestations::runtimeConfigAttestationValueV1($data);
+
+                echo json_encode([
+                    'attestation' => [
+                        'key' => $key,
+                        'value' => $value,
+                    ],
+                    'source_path' => $repo->sourcePath(),
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+                exit(0);
+            } catch (\Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
+
+        case 'runtime:attestation:http-allowed-hosts':
+            $target = null;
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg)) {
+                    continue;
+                }
+                if (str_starts_with($arg, '--path=')) {
+                    $target = substr($arg, 7);
+                }
+            }
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+                    continue;
+                }
+                $target ??= $arg;
+            }
+
+            try {
+                if ($target !== null) {
+                    $repo = ConfigRepository::fromJsonFile($target);
+                } else {
+                    $repo = ConfigBootstrap::loadFirstAvailableJsonFile();
+                }
+
+                $raw = $repo->get('http.allowed_hosts');
+                if ($raw === null || $raw === '') {
+                    throw new \RuntimeException('Missing required config list: http.allowed_hosts');
+                }
+                if (!is_array($raw)) {
+                    throw new \RuntimeException('Invalid config type for http.allowed_hosts (expected list of strings).');
+                }
+
+                $payload = KernelAttestations::httpAllowedHostsPayloadV1($raw);
+                $key = KernelAttestations::httpAllowedHostsAttestationKeyV1();
+                $value = \BlackCat\Config\Security\CanonicalJson::sha256Bytes32($payload);
+
+                echo json_encode([
+                    'attestation' => [
+                        'key' => $key,
+                        'value' => $value,
+                    ],
+                    'payload' => $payload,
+                    'source_path' => $repo->sourcePath(),
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+                exit(0);
+            } catch (\Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
+
+        case 'runtime:attestation:composer-lock':
+            $target = null;
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg)) {
+                    continue;
+                }
+                if (str_starts_with($arg, '--path=')) {
+                    $target = substr($arg, 7);
+                }
+            }
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+                    continue;
+                }
+                $target ??= $arg;
+            }
+
+            try {
+                if ($target === null) {
+                    $repo = ConfigBootstrap::loadFirstAvailableJsonFile();
+                    $rootDirRaw = $repo->get('trust.integrity.root_dir');
+                    if (!is_string($rootDirRaw) || trim($rootDirRaw) === '') {
+                        throw new \RuntimeException('Unable to derive composer.lock path (missing trust.integrity.root_dir). Use --path=...');
+                    }
+                    $rootDir = $repo->resolvePath($rootDirRaw);
+                    $target = rtrim($rootDir, "/\\") . DIRECTORY_SEPARATOR . 'composer.lock';
+                }
+
+                $policy = new \BlackCat\Config\Security\ConfigFilePolicy(
+                    allowSymlinks: false,
+                    allowWorldReadable: true,
+                    allowGroupWritable: false,
+                    allowWorldWritable: false,
+                    maxBytes: 8 * 1024 * 1024,
+                    checkParentDirs: true,
+                    enforceOwner: false,
+                );
+
+                \BlackCat\Config\Security\SecureFile::assertSecureReadableFile($target, $policy);
+
+                $raw = file_get_contents($target);
+                if ($raw === false) {
+                    throw new \RuntimeException('Unable to read composer.lock: ' . $target);
+                }
+
+                /** @var mixed $decoded */
+                $decoded = json_decode($raw, true);
+                if (!is_array($decoded)) {
+                    throw new \RuntimeException('composer.lock must decode to an object/array: ' . $target);
+                }
+
+                /** @var array<string,mixed> $decoded */
+                $key = KernelAttestations::composerLockAttestationKeyV1();
+                $value = KernelAttestations::composerLockAttestationValueV1($decoded);
+
+                echo json_encode([
+                    'attestation' => [
+                        'key' => $key,
+                        'value' => $value,
+                    ],
+                    'source_path' => $target,
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+                exit(0);
+            } catch (\Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
+
+        case 'runtime:attestation:php-fingerprint':
+            try {
+                $payloadV2 = KernelAttestations::phpFingerprintPayloadV2();
+                $keyV2 = KernelAttestations::phpFingerprintAttestationKeyV2();
+                $valueV2 = KernelAttestations::phpFingerprintAttestationValueV2($payloadV2);
+
+                $payloadV1 = KernelAttestations::phpFingerprintPayloadV1();
+                $keyV1 = KernelAttestations::phpFingerprintAttestationKeyV1();
+                $valueV1 = KernelAttestations::phpFingerprintAttestationValueV1($payloadV1);
+
+                echo json_encode([
+                    'attestation_v2' => [
+                        'key' => $keyV2,
+                        'value' => $valueV2,
+                    ],
+                    'payload_v2' => $payloadV2,
+                    'attestation_v1' => [
+                        'key' => $keyV1,
+                        'value' => $valueV1,
+                    ],
+                    'payload_v1' => $payloadV1,
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+                exit(0);
+            } catch (\Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
+
+        case 'runtime:attestation:image-digest':
+            $target = null;
+            $digest = null;
+            $sourcePath = null;
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg)) {
+                    continue;
+                }
+                if (str_starts_with($arg, '--path=')) {
+                    $target = substr($arg, 7);
+                }
+                if (str_starts_with($arg, '--digest=')) {
+                    $digest = substr($arg, 9);
+                }
+            }
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+                    continue;
+                }
+                if ($target === null && $digest === null) {
+                    if (is_file($arg)) {
+                        $target = $arg;
+                    } else {
+                        $digest = $arg;
+                    }
+                }
+            }
+
+            try {
+                $target ??= '/etc/blackcat/image.digest';
+                if ($digest === null) {
+                    $policy = ConfigFilePolicy::publicReadable();
+                    SecureFile::assertSecureReadableFile($target, $policy);
+                    $raw = file_get_contents($target);
+                    if ($raw === false) {
+                        throw new \RuntimeException('Unable to read image digest file: ' . $target);
+                    }
+                    $digest = $raw;
+                    $sourcePath = $target;
+                }
+
+                $key = KernelAttestations::imageDigestAttestationKeyV1();
+                $value = KernelAttestations::imageDigestAttestationValueV1($digest);
+
+                echo json_encode([
+                    'attestation' => [
+                        'key' => $key,
+                        'value' => $value,
+                    ],
+                    'source_path' => $sourcePath,
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+                exit(0);
+            } catch (\Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
+
+        case 'runtime:doctor':
+            $target = null;
+            $strict = in_array('--strict', $commandArgs, true);
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg)) {
+                    continue;
+                }
+                if (str_starts_with($arg, '--path=')) {
+                    $target = substr($arg, 7);
+                }
+            }
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+                    continue;
+                }
+                $target ??= $arg;
+            }
+
+            try {
+                if ($target !== null) {
+                    $repo = ConfigRepository::fromJsonFile($target);
+                } else {
+                    $repo = ConfigBootstrap::loadFirstAvailableJsonFile();
+                }
+
+                $res = RuntimeDoctor::inspect($repo);
+                echo json_encode($res, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+
+                $errors = (int)($res['summary']['errors'] ?? 0);
+                $warnings = (int)($res['summary']['warnings'] ?? 0);
+
+                if ($errors > 0) {
+                    exit(2);
+                }
+                if ($strict && $warnings > 0) {
+                    exit(2);
+                }
+
+                exit(0);
+            } catch (\Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
+
+        case 'runtime:init':
+            $force = in_array('--force', $commandArgs, true);
+            $template = null;
+            $target = null;
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg)) {
+                    continue;
+                }
+                if (str_starts_with($arg, '--path=')) {
+                    $target = substr($arg, 7);
+                }
+                if (str_starts_with($arg, '--out=')) {
+                    $target = substr($arg, 6);
+                }
+                if (str_starts_with($arg, '--template=')) {
+                    $template = substr($arg, 11);
+                }
+            }
+            foreach ($commandArgs as $arg) {
+                if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+                    continue;
+                }
+                $target ??= $arg;
+            }
+
+            try {
+                $payload = [];
+                if (is_string($template)) {
+                    $t = strtolower(trim($template));
+                    if (str_starts_with($t, 'runtime:template:')) {
+                        $t = substr($t, 17);
+                    }
+
+                    $payload = match ($t) {
+                        'trust-edgen' => trustKernelEdgenTemplate('full'),
+                        'trust-edgen-compat' => trustKernelEdgenTemplate('root_uri'),
+                        '' => [],
+                        default => throw new \RuntimeException('Unknown runtime template: ' . $template),
+                    };
+                }
+
+                $res = RuntimeConfigInstaller::init($payload, $target, $force);
+                echo json_encode($res, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+                exit(0);
+            } catch (\Throwable $exception) {
+                fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+                exit(2);
+            }
+
+        default:
+            printHelp();
+            fwrite(STDERR, "Unknown command {$command}\n");
+            exit(1);
+    }
+}
+
+// Security code scan does not depend on profiles.php.
+if ($command === 'security:scan') {
+    $root = (string) (getcwd() ?: '.');
+    foreach ($commandArgs as $arg) {
+        if (!is_string($arg)) {
+            continue;
+        }
+        if (str_starts_with($arg, '--path=')) {
+            $root = substr($arg, 7);
+            continue;
+        }
+    }
+    foreach ($commandArgs as $arg) {
+        if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+            continue;
+        }
+        $root = $arg;
+        break;
+    }
+
+    try {
+        $res = SourceCodePolicyScanner::scan($root);
+        echo json_encode($res, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        exit($res['violations'] === [] ? 0 : 2);
+    } catch (\Throwable $exception) {
+        fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+}
+
+if ($command === 'security:attack-surface') {
+    $root = (string) (getcwd() ?: '.');
+    foreach ($commandArgs as $arg) {
+        if (!is_string($arg)) {
+            continue;
+        }
+        if (str_starts_with($arg, '--path=')) {
+            $root = substr($arg, 7);
+            continue;
+        }
+    }
+    foreach ($commandArgs as $arg) {
+        if (!is_string($arg) || $arg === '' || str_starts_with($arg, '--')) {
+            continue;
+        }
+        $root = $arg;
+        break;
+    }
+
+    try {
+        $res = AttackSurfaceScanner::scan($root);
+        echo json_encode($res, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+
+        $hasErrors = false;
+        foreach ($res['findings'] as $finding) {
+            if (($finding['severity'] ?? null) === 'error') {
+                $hasErrors = true;
+                break;
+            }
+        }
+
+        exit($hasErrors ? 2 : 0);
+    } catch (\Throwable $exception) {
+        fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+}
+
 try {
     $profileConfig = ProfileConfig::fromFile($configPath);
-} catch (Throwable $exception) {
+} catch (\Throwable $exception) {
     fwrite(STDERR, "Unable to load config: {$exception->getMessage()}" . PHP_EOL);
     exit(1);
 }
@@ -40,7 +504,7 @@ $emit = static function (string $event, array $context = [], ?ConfigProfile $pro
     $channel = $profile?->telemetryChannel($defaultTelemetry) ?? $defaultTelemetry;
     try {
         TelemetryEmitter::forChannel($channel)->emit($event, $context);
-    } catch (Throwable $exception) {
+    } catch (\Throwable $exception) {
         fwrite(STDERR, "[telemetry] {$exception->getMessage()}" . PHP_EOL);
     }
 };
@@ -179,7 +643,7 @@ function requireProfile(ProfileConfig $config, ?string $name): ConfigProfile
 
     try {
         return $config->require($name);
-    } catch (Throwable $exception) {
+    } catch (\Throwable $exception) {
         fwrite(STDERR, $exception->getMessage() . PHP_EOL);
         exit(1);
     }
@@ -200,7 +664,81 @@ Usage:
   config [profiles.php] integration:check <profile>
   config [profiles.php] telemetry:tail <profile> [lines]
   config [profiles.php] security:check <profile>
+  config security:scan [path]
+  config security:attack-surface [path]
   config [profiles.php] check
+  config runtime:paths
+  config runtime:scan
+  config runtime:recommend
+  config runtime:template:trust-edgen
+  config runtime:template:trust-edgen-compat
+  config runtime:attestation:runtime-config [--path=FILE]
+  config runtime:attestation:http-allowed-hosts [--path=FILE]
+  config runtime:attestation:composer-lock [--path=FILE]
+  config runtime:attestation:php-fingerprint
+  config runtime:attestation:image-digest [--path=FILE] [--digest=...]
+  config runtime:doctor [--path=FILE] [--strict]
+  config runtime:init [--force] [--out=FILE] [--template=trust-edgen|trust-edgen-compat]
 
 TXT;
+}
+
+/**
+ * @param 'root_uri'|'full' $mode
+ * @return array{
+ *   crypto:array{keys_dir:string,agent:array{socket_path:string}},
+ *   trust:array{
+ *     integrity:array{root_dir:string,manifest:string},
+ *     web3:array{
+ *       chain_id:int,
+ *       rpc_endpoints:list<string>,
+ *       rpc_quorum:int,
+ *       max_stale_sec:int,
+ *       timeout_sec:int,
+ *       mode:'root_uri'|'full',
+ *       tx_outbox_dir:string,
+ *       contracts:array{instance_controller:string,release_registry:string,instance_factory:string}
+ *     }
+ *   }
+ * }
+ */
+function trustKernelEdgenTemplate(string $mode): array
+{
+    return [
+        'crypto' => [
+            'keys_dir' => '/etc/blackcat/keys',
+            'agent' => [
+                'socket_path' => '/etc/blackcat/secrets-agent.sock',
+            ],
+        ],
+        'db' => [
+            'agent' => [
+                'socket_path' => '/etc/blackcat/secrets-agent.sock',
+            ],
+            'credentials_file' => '/etc/blackcat/db.credentials.json',
+        ],
+        'trust' => [
+            'integrity' => [
+                'root_dir' => '/srv/blackcat',
+                'manifest' => '/etc/blackcat/integrity.manifest.json',
+            ],
+            'web3' => [
+                'chain_id' => 4207,
+                'rpc_endpoints' => [
+                    'https://rpc.layeredge.io',
+                    'https://edgenscan.io/api/eth-rpc',
+                ],
+                'rpc_quorum' => 2,
+                'max_stale_sec' => 180,
+                'timeout_sec' => 5,
+                'mode' => $mode,
+                'tx_outbox_dir' => '/var/lib/blackcat/tx-outbox',
+                'contracts' => [
+                    'instance_controller' => '0xYOUR_INSTALL_INSTANCE_CONTROLLER_CLONE',
+                    'release_registry' => '0x22681Ee2153B7B25bA6772B44c160BB60f4C333E',
+                    'instance_factory' => '0x92C80Cff5d75dcD3846EFb5DF35957D5Aed1c7C5',
+                ],
+            ],
+        ],
+    ];
 }
