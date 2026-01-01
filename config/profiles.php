@@ -17,7 +17,7 @@ return [
         ],
         'security' => [
             'requires_tls' => true,
-            'required_env' => ['APP_ENV', 'DB_DSN'],
+            'required_env' => ['APP_ENV', 'APP_URL'],
         ],
     ],
     'profiles' => [
@@ -47,7 +47,6 @@ return [
         'env_template' => __DIR__ . '/env-templates/staging.env',
             'env' => [
                 'APP_ENV' => 'staging',
-                'DB_DSN' => '${env:STAGING_DB_DSN}',
                 'APP_URL' => 'https://staging.blackcat.local',
             ],
             'modules' => ['blackcat-database', 'blackcat-messaging', 'blackcat-crypto'],
@@ -61,8 +60,7 @@ return [
                 'security' => '../blackcat-security/bin/security',
             ],
             'security' => [
-                'required_env' => ['DB_DSN', 'APP_URL'],
-                'secrets' => ['DB_DSN'],
+                'required_env' => ['APP_URL'],
             ],
         ],
         'prod' => [
@@ -70,7 +68,6 @@ return [
         'env_template' => __DIR__ . '/env-templates/production.env',
             'env' => [
                 'APP_ENV' => 'prod',
-                'DB_DSN' => '${env:PROD_DB_DSN}',
                 'APP_URL' => 'https://app.blackcat.cloud',
             ],
             'modules' => ['blackcat-database', 'blackcat-crypto', 'blackcat-security'],
@@ -83,8 +80,7 @@ return [
                 'orchestrator' => '../blackcat-orchestrator/bin/orchestrator',
             ],
             'security' => [
-                'required_env' => ['DB_DSN', 'APP_URL'],
-                'secrets' => ['DB_DSN'],
+                'required_env' => ['APP_URL'],
                 'requires_tls' => true,
             ],
         ],
