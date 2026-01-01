@@ -129,6 +129,9 @@ final class RuntimeConfigInstaller
                 continue;
             }
 
+            $existedBefore = file_exists($candidate);
+            $created = false;
+
             try {
                 $created = self::ensureRuntimeConfigFile($candidate, $payload, $force);
                 // Validate post-write to ensure this location is actually usable by strict readers.
@@ -140,6 +143,9 @@ final class RuntimeConfigInstaller
                     'rejected' => $rejected,
                 ];
             } catch (\Throwable $e) {
+                if ($created && !$existedBefore) {
+                    @unlink($candidate);
+                }
                 $rejected[$candidate] = $e->getMessage();
                 continue;
             }
@@ -256,6 +262,15 @@ final class RuntimeConfigInstaller
 
         if (DIRECTORY_SEPARATOR !== '\\') {
             @chmod($tmp, 0600);
+        }
+
+        // Validate the temp file before moving it into place. If strict validation fails, avoid leaving secrets
+        // behind on disk in a location that the installer will later reject.
+        try {
+            SecureFile::assertSecureReadableFile($tmp, ConfigFilePolicy::strict());
+        } catch (\Throwable $e) {
+            @unlink($tmp);
+            throw new \RuntimeException('Runtime config temp file is not secure/valid: ' . $e->getMessage());
         }
 
         if (!@rename($tmp, $path)) {

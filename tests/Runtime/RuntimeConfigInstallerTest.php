@@ -76,6 +76,7 @@ final class RuntimeConfigInstallerTest extends TestCase
             self::assertSame($goodPath, $res['path']);
             self::assertTrue($res['created']);
             self::assertFileExists($goodPath);
+            self::assertFalse(file_exists($badPath), 'Rejected candidate must not leave runtime config on disk.');
 
             $mode = fileperms($goodPath);
             self::assertIsInt($mode);
@@ -85,6 +86,34 @@ final class RuntimeConfigInstallerTest extends TestCase
             @unlink($goodPath);
             @rmdir($badDir);
             @rmdir($goodDir);
+            @rmdir($base);
+        }
+    }
+
+    public function testInitDoesNotLeaveFileOnDiskWhenAllCandidatesRejected(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('POSIX permissions required.');
+        }
+
+        $base = $this->makeTmpDir(0700);
+        $badDir = $base . '/bad';
+
+        mkdir($badDir, 0777, true);
+        @chmod($badDir, 0777);
+
+        $badPath = $badDir . '/config.runtime.json';
+
+        try {
+            try {
+                RuntimeConfigInstaller::init(['hello' => 'world'], $badPath, false);
+                self::fail('Expected init() to fail for insecure path.');
+            } catch (\RuntimeException) {
+                self::assertFalse(file_exists($badPath), 'Rejected explicit path must not leave runtime config on disk.');
+            }
+        } finally {
+            @unlink($badPath);
+            @rmdir($badDir);
             @rmdir($base);
         }
     }
