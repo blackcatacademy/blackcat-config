@@ -50,7 +50,7 @@ use BlackCat\Config\Runtime\Config;
 
 Config::initFromJsonFile('/etc/blackcat/config.runtime.json');
 
-$dsn = Config::requireString('db.dsn'); // dot-notation
+$appName = Config::requireString('app.name'); // dot-notation
 ```
 
 Fail-closed note:

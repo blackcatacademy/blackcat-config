@@ -88,7 +88,7 @@ final class ConfigRepository
     }
 
     /**
-     * Dot-notation lookup (e.g., "db.dsn").
+     * Dot-notation lookup (e.g., "app.name").
      */
     public function get(string $key, mixed $default = null): mixed
     {
