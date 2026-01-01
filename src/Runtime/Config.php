@@ -11,7 +11,7 @@ use BlackCat\Config\Security\ConfigFilePolicy;
  *
  * Intended usage:
  *   Config::initFromJsonFile('/etc/blackcat/config.runtime.json');
- *   $dsn = Config::requireString('db.dsn');
+ *   $appName = Config::requireString('app.name');
  */
 final class Config
 {

@@ -129,6 +129,9 @@ final class RuntimeConfigInstaller
                 continue;
             }
 
+            $existedBefore = file_exists($candidate);
+            $created = false;
+
             try {
                 $created = self::ensureRuntimeConfigFile($candidate, $payload, $force);
                 // Validate post-write to ensure this location is actually usable by strict readers.
@@ -140,6 +143,9 @@ final class RuntimeConfigInstaller
                     'rejected' => $rejected,
                 ];
             } catch (\Throwable $e) {
+                if ($created && !$existedBefore) {
+                    @unlink($candidate);
+                }
                 $rejected[$candidate] = $e->getMessage();
                 continue;
             }
@@ -154,6 +160,20 @@ final class RuntimeConfigInstaller
             "Unable to initialize runtime config file.\nRejected candidates:\n%s",
             $lines !== [] ? implode("\n", $lines) : '(none)',
         ));
+    }
+
+    /**
+     * Convenience wrapper: initialize runtime config in the best available location.
+     *
+     * Equivalent to calling {@see self::init()} without providing an explicit path.
+     *
+     * @param array<string,mixed> $payload
+     * @param list<string>|null $candidates
+     * @return array{path:string,created:bool,rejected:array<string,string>}
+     */
+    public static function initRecommended(array $payload = [], bool $force = false, ?array $candidates = null): array
+    {
+        return self::init($payload, null, $force, $candidates);
     }
 
     /**
@@ -177,6 +197,8 @@ final class RuntimeConfigInstaller
         if (!self::isAbsolutePath($path)) {
             throw new \InvalidArgumentException('Runtime config path must be absolute (relative paths are not allowed): ' . $path);
         }
+
+        self::assertNotInDocumentRoot($path);
 
         $dir = dirname($path);
         if ($dir === '' || $dir === '.' || $dir === DIRECTORY_SEPARATOR) {
@@ -242,6 +264,15 @@ final class RuntimeConfigInstaller
             @chmod($tmp, 0600);
         }
 
+        // Validate the temp file before moving it into place. If strict validation fails, avoid leaving secrets
+        // behind on disk in a location that the installer will later reject.
+        try {
+            SecureFile::assertSecureReadableFile($tmp, ConfigFilePolicy::strict());
+        } catch (\Throwable $e) {
+            @unlink($tmp);
+            throw new \RuntimeException('Runtime config temp file is not secure/valid: ' . $e->getMessage());
+        }
+
         if (!@rename($tmp, $path)) {
             @unlink($tmp);
             throw new \RuntimeException('Unable to move runtime config into place: ' . $path);
@@ -300,6 +331,12 @@ final class RuntimeConfigInstaller
         }
         if (!self::isAbsolutePath($path)) {
             return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => 'Path must be absolute (relative paths are not allowed).'];
+        }
+
+        try {
+            self::assertNotInDocumentRoot($path);
+        } catch (\Throwable $e) {
+            return ['path' => $path, 'status' => 'reject', 'score' => 0, 'reason' => $e->getMessage()];
         }
 
         $warnings = [];
@@ -614,5 +651,87 @@ final class RuntimeConfigInstaller
         }
         $val = trim($val);
         return $val !== '' ? $val : null;
+    }
+
+    private static function assertNotInDocumentRoot(string $path): void
+    {
+        $docRoot = self::documentRoot();
+        if ($docRoot === null) {
+            return;
+        }
+
+        $docRootNorm = self::normalizeFsPath($docRoot);
+        $pathNorm = self::normalizeFsPath($path);
+        if ($docRootNorm === null || $pathNorm === null) {
+            return;
+        }
+
+        if (self::isPathWithin($pathNorm, $docRootNorm)) {
+            throw new \RuntimeException(sprintf(
+                'Runtime config file must not be located inside the web document root (%s): %s',
+                $docRootNorm,
+                $pathNorm,
+            ));
+        }
+    }
+
+    private static function documentRoot(): ?string
+    {
+        $candidates = [
+            $_SERVER['CONTEXT_DOCUMENT_ROOT'] ?? null,
+            $_SERVER['DOCUMENT_ROOT'] ?? null,
+        ];
+
+        foreach ($candidates as $raw) {
+            if (!is_string($raw)) {
+                continue;
+            }
+            $raw = trim($raw);
+            if ($raw === '' || str_contains($raw, "\0")) {
+                continue;
+            }
+            return $raw;
+        }
+
+        return null;
+    }
+
+    private static function normalizeFsPath(string $path): ?string
+    {
+        $path = trim($path);
+        if ($path === '' || str_contains($path, "\0")) {
+            return null;
+        }
+
+        $real = @realpath($path);
+        if (is_string($real) && $real !== '') {
+            $path = $real;
+        }
+
+        $path = str_replace('\\', '/', $path);
+        $path = rtrim($path, '/');
+        if ($path === '') {
+            $path = '/';
+        }
+
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $path = strtolower($path);
+        }
+
+        return $path;
+    }
+
+    private static function isPathWithin(string $child, string $parent): bool
+    {
+        $parent = rtrim($parent, '/');
+        if ($parent === '') {
+            $parent = '/';
+        }
+
+        if ($parent === '/') {
+            return str_starts_with($child, '/');
+        }
+
+        return $child === $parent || str_starts_with($child, $parent . '/');
     }
 }

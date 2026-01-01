@@ -12,7 +12,7 @@
       {
         "id": "config",
         "command": "config",
-        "summary": "Runtime config tooling (paths/recommend/init).",
+        "summary": "Runtime config, profiles, and hardening tools.",
         "type": "builtin"
       }
     ]

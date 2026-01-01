@@ -9,9 +9,10 @@ Network:
 CLI helpers:
 
 ```bash
-php vendor/bin/config runtime:template:trust-edgen
-php vendor/bin/config runtime:template:trust-edgen-compat
-php vendor/bin/config runtime:init --template=trust-edgen
+blackcat config runtime recommend
+blackcat config runtime template trust-edgen --json
+blackcat config runtime init --force
+blackcat config runtime attestation --path=/etc/blackcat/config.runtime.json
 ```
 
 ## Runtime config template (JSON)
@@ -35,7 +36,8 @@ Create a runtime config file (recommended: `/etc/blackcat/config.runtime.json`) 
   "trust": {
     "integrity": {
       "root_dir": "/srv/blackcat",
-      "manifest": "/etc/blackcat/integrity.manifest.json"
+      "manifest": "/etc/blackcat/integrity.manifest.json",
+      "image_digest_file": "/etc/blackcat/image.digest"
     },
     "web3": {
       "chain_id": 4207,
@@ -80,9 +82,9 @@ If you use `TrustPolicyV3` in `InstanceController.activePolicyHash`, the kernel 
 Compute the attestation key/value:
 
 ```bash
-php vendor/bin/config runtime:attestation:runtime-config
+blackcat config runtime attestation
 # or
-php vendor/bin/config runtime:attestation:runtime-config --path=/etc/blackcat/config.runtime.json
+blackcat config runtime attestation --path=/etc/blackcat/config.runtime.json
 ```
 
 Then set `attestations[key]=value` on your per-install `InstanceController` and lock the key (recommended).
