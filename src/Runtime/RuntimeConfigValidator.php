@@ -298,7 +298,10 @@ final class RuntimeConfigValidator
             if (!is_string($releaseRegistry)) {
                 throw new \RuntimeException('Invalid config type for trust.web3.contracts.release_registry (expected string).');
             }
-            self::assertEvmAddress($releaseRegistry, 'trust.web3.contracts.release_registry');
+            // Allow `0x000...0` explicitly to support installs that disable the ReleaseRegistry pointer on-chain
+            // (InstanceController.releaseRegistry == 0). This is still protected by the runtime-config attestation,
+            // so tampering the value in production remains detectable and fail-closed.
+            self::assertEvmAddressAllowZero($releaseRegistry, 'trust.web3.contracts.release_registry');
         }
 
         $factory = $repo->get('trust.web3.contracts.instance_factory');
@@ -446,6 +449,18 @@ final class RuntimeConfigValidator
 
         if (strtolower($address) === '0x0000000000000000000000000000000000000000') {
             throw new \RuntimeException('Invalid EVM address for ' . $key . ' (zero address).');
+        }
+    }
+
+    private static function assertEvmAddressAllowZero(string $address, string $key): void
+    {
+        $address = trim($address);
+        if ($address === '') {
+            throw new \RuntimeException('Missing required config string: ' . $key);
+        }
+
+        if (!preg_match('/^0x[a-fA-F0-9]{40}$/', $address)) {
+            throw new \RuntimeException('Invalid EVM address for ' . $key . '.');
         }
     }
 
